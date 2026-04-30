@@ -1,0 +1,11 @@
+{
+  "session_id": "codex-session-1",
+  "cwd": "/work/repo",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "make deploy",
+    "description": "Run deployment command"
+  },
+  "message": "Approval required for make deploy"
+}

@@ -1,0 +1,6 @@
+{
+  "session_id": "gemini-session-1",
+  "cwd": "/tmp/gemini-app",
+  "hook_event_name": "AfterAgent",
+  "summary": "Gemini finished the requested change."
+}

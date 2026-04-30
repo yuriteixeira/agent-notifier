@@ -1,0 +1,6 @@
+{
+  "session_id": "claude-session-1",
+  "cwd": "/Users/alice/project-alpha",
+  "hook_event_name": "Stop",
+  "last_assistant_message": "Implemented notifier and ran tests."
+}

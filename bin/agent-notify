@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: agent-notify --agent claude|codex|gemini --event finished|interaction [payload-json]
+
+Reads hook JSON from stdin by default. For Codex legacy notification commands,
+the first positional JSON payload is also accepted.
+EOF
+}
+
+fail_usage() {
+  printf 'agent-notify: %s\n' "$1" >&2
+  usage
+  exit 64
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+squash_ws() {
+  tr '\r\n\t' '   ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
+}
+
+limit_text() {
+  awk -v max="$1" '{
+    if (length($0) > max) {
+      print substr($0, 1, max - 3) "..."
+    } else {
+      print
+    }
+  }'
+}
+
+lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+json_unescape() {
+  sed 's/\\"/"/g; s/\\\\/\\/g; s/\\n/ /g; s/\\r/ /g; s/\\t/ /g'
+}
+
+json_string_value() {
+  key=$1
+  [ -n "${payload:-}" ] || return 0
+  printf '%s' "$payload" |
+    tr '\n' ' ' |
+    sed -nE 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p' |
+    head -n 1 |
+    json_unescape
+}
+
+first_json_value() {
+  for key in "$@"; do
+    value=$(json_string_value "$key")
+    if [ -n "$value" ]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+}
+
+agent_label() {
+  case "$1" in
+    claude) printf 'Claude Code' ;;
+    codex) printf 'Codex CLI' ;;
+    gemini) printf 'Gemini CLI' ;;
+  esac
+}
+
+event_from_payload() {
+  hint=$(first_json_value hook_event_name hook-event-name notification_type notification-type event type reason)
+  hint=$(lower "$hint")
+  case "$hint" in
+    *afteragent*|*complete*|*completed*|*finish*|*finished*|*stop*|*turn-complete*)
+      printf 'finished'
+      ;;
+    *)
+      printf 'interaction'
+      ;;
+  esac
+}
+
+normalize_agent() {
+  case "$(lower "$1")" in
+    claude|claude-code|claudecode) printf 'claude' ;;
+    codex|codex-cli|codexcli) printf 'codex' ;;
+    gemini|gemini-cli|geminicli) printf 'gemini' ;;
+    *) return 1 ;;
+  esac
+}
+
+title_for() {
+  payload_title=$(first_json_value title)
+  if [ -n "$payload_title" ]; then
+    printf '%s' "$payload_title" | squash_ws | limit_text 96
+    return 0
+  fi
+
+  label=$(agent_label "$agent")
+  case "$event" in
+    finished) printf '%s finished' "$label" ;;
+    interaction) printf '%s needs input' "$label" ;;
+  esac
+}
+
+body_for() {
+  message=$(first_json_value message last_assistant_message last-assistant-message description reason prompt summary)
+  cwd=$(first_json_value cwd current_working_directory current-working-directory workspace_dir workspace-dir)
+
+  if [ -n "$message" ] && [ -n "$cwd" ]; then
+    printf '%s (%s)' "$message" "$cwd"
+  elif [ -n "$message" ]; then
+    printf '%s' "$message"
+  elif [ -n "$cwd" ]; then
+    printf 'Working directory: %s' "$cwd"
+  else
+    label=$(agent_label "$agent")
+    case "$event" in
+      finished) printf '%s finished a turn.' "$label" ;;
+      interaction) printf '%s is waiting for user interaction.' "$label" ;;
+    esac
+  fi | squash_ws | limit_text 420
+}
+
+osascript_quote() {
+  sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+notify_local() {
+  os=$(uname -s 2>/dev/null || printf 'unknown')
+  case "$os" in
+    Darwin)
+      if have osascript; then
+        escaped_title=$(printf '%s' "$title" | osascript_quote)
+        escaped_body=$(printf '%s' "$body" | osascript_quote)
+        osascript -e "display notification \"$escaped_body\" with title \"$escaped_title\"" >/dev/null 2>&1 || true
+      fi
+      ;;
+    Linux)
+      if have notify-send; then
+        notify-send "$title" "$body" >/dev/null 2>&1 || true
+      fi
+      ;;
+  esac
+}
+
+notify_tmux() {
+  if [ -n "${TMUX:-}" ] && have tmux; then
+    tmux display-message "$title: $body" >/dev/null 2>&1 || true
+    { printf '\a' >/dev/tty; } 2>/dev/null || true
+  fi
+}
+
+strip_config_value() {
+  value=$1
+  value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+  case "$value" in
+    \"*\") value=${value#\"}; value=${value%\"} ;;
+    \'*\') value=${value#\'}; value=${value%\'} ;;
+  esac
+  printf '%s' "$value"
+}
+
+load_ntfy_dotfile() {
+  config_file=${AGENT_NOTIFY_NTFY_ENV:-"$HOME/.config/agent-notify/ntfy.env"}
+  [ -f "$config_file" ] || return 0
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+
+    key=${line%%=*}
+    value=${line#*=}
+    key=$(printf '%s' "$key" | sed 's/^[[:space:]]*export[[:space:]]*//; s/^[[:space:]]*//; s/[[:space:]]*$//')
+    value=$(strip_config_value "$value")
+
+    case "$key" in
+      NTFY_TOPIC) [ -z "${NTFY_TOPIC:-}" ] && NTFY_TOPIC=$value ;;
+      NTFY_SERVER) [ -z "${NTFY_SERVER:-}" ] && NTFY_SERVER=$value ;;
+      NTFY_TOKEN) [ -z "${NTFY_TOKEN:-}" ] && NTFY_TOKEN=$value ;;
+    esac
+  done <"$config_file"
+}
+
+notify_ntfy() {
+  load_ntfy_dotfile
+  [ -n "${NTFY_TOPIC:-}" ] || return 0
+  have curl || return 0
+
+  server=${NTFY_SERVER:-https://ntfy.sh}
+  server=${server%/}
+  topic=${NTFY_TOPIC#/}
+  priority=default
+  tags=heavy_check_mark
+  if [ "$event" = "interaction" ]; then
+    priority=high
+    tags=warning
+  fi
+
+  curl_args=(
+    -fsS
+    -X POST
+    "$server/$topic"
+    -H "Title: $title"
+    -H "Priority: $priority"
+    -H "Tags: $tags"
+  )
+  if [ -n "${NTFY_TOKEN:-}" ]; then
+    curl_args+=(-H "Authorization: Bearer $NTFY_TOKEN")
+  fi
+  curl_args+=(--data-binary "$body")
+
+  curl "${curl_args[@]}" >/dev/null 2>&1 || true
+}
+
+agent=
+event=
+payload_arg=
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --agent)
+      [ "$#" -ge 2 ] || fail_usage '--agent requires a value'
+      agent=$2
+      shift 2
+      ;;
+    --agent=*)
+      agent=${1#--agent=}
+      shift
+      ;;
+    --event)
+      [ "$#" -ge 2 ] || fail_usage '--event requires a value'
+      event=$2
+      shift 2
+      ;;
+    --event=*)
+      event=${1#--event=}
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      fail_usage "unknown flag: $1"
+      ;;
+    *)
+      if [ -z "$payload_arg" ]; then
+        payload_arg=$1
+      else
+        fail_usage "unexpected positional argument: $1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ "$#" -gt 0 ]; then
+  if [ -z "$payload_arg" ] && [ "$#" -eq 1 ]; then
+    payload_arg=$1
+  else
+    fail_usage 'unexpected positional arguments'
+  fi
+fi
+
+if [ -n "$payload_arg" ]; then
+  payload=$payload_arg
+elif [ ! -t 0 ]; then
+  payload=$(cat)
+else
+  payload=
+fi
+
+if [ -n "$agent" ]; then
+  agent=$(normalize_agent "$agent") || fail_usage 'invalid --agent; expected claude, codex, or gemini'
+else
+  payload_agent=$(first_json_value agent cli source)
+  agent=$(normalize_agent "$payload_agent" 2>/dev/null || true)
+  if [ -z "$agent" ] && [ -n "$payload" ]; then
+    agent=codex
+  fi
+  [ -n "$agent" ] || fail_usage '--agent is required when no payload can identify the agent'
+fi
+
+if [ -n "$event" ]; then
+  event=$(lower "$event")
+else
+  event=$(event_from_payload)
+fi
+
+case "$event" in
+  finished|interaction) ;;
+  *) fail_usage 'invalid --event; expected finished or interaction' ;;
+esac
+
+title=$(title_for)
+body=$(body_for)
+
+notify_local
+notify_tmux
+notify_ntfy
+
+exit 0
