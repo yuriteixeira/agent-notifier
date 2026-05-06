@@ -284,6 +284,25 @@ test_tmux_default_body_does_not_repeat_title() {
   assert_log_not_contains 'Codex CLI finished a turn.'
 }
 
+test_tmux_body_wraps_into_multiple_menu_rows() {
+  new_case || return 1
+  AGENT_NOTIFIER_TEST_UNAME=Linux
+  TMUX=/tmp/tmux-session
+  TMUX_PANE='%34'
+  AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME=agent-work
+  AGENT_NOTIFIER_TEST_TMUX_SESSION_ID='$9'
+  AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME=/dev/ttys015
+  AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID='@12'
+  AGENT_NOTIFIER_TEST_TMUX_PANE_ID='%34'
+  mock_uname
+  mock_tmux_session
+
+  run_payload '{"message":"alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega"}' --agent codex --event finished || return 1
+  wait_log_contains 'display-menu' || return 1
+  assert_log_contains '[agent-work] alpha beta gamma delta epsilon zeta eta theta iota kappa' || return 1
+  assert_log_contains '- lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega' || return 1
+}
+
 test_tmux_session_added_to_local_notification() {
   new_case || return 1
   AGENT_NOTIFIER_TEST_UNAME=Linux
@@ -611,6 +630,7 @@ run_test 'Linux chooses notify-send' test_linux_uses_notify_send
 run_test 'missing OS backend exits successfully' test_missing_os_backend_exits_successfully
 run_test 'tmux display is attempted when available' test_tmux_attempted_when_available
 run_test 'tmux default body does not repeat title' test_tmux_default_body_does_not_repeat_title
+run_test 'tmux body wraps into multiple menu rows' test_tmux_body_wraps_into_multiple_menu_rows
 run_test 'tmux session is added to local notifications' test_tmux_session_added_to_local_notification
 run_test 'tmux display is skipped when tmux is missing' test_tmux_skipped_when_command_missing
 run_test 'ntfy is skipped without a topic' test_ntfy_skipped_without_topic
