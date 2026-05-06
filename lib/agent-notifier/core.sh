@@ -131,10 +131,9 @@ body_for() {
   elif [ -n "$cwd" ]; then
     body_text=$(printf 'Working directory: %s' "$cwd")
   else
-    label=$(agent_label "$agent")
     case "$event" in
-      finished) body_text=$(printf '%s finished a turn.' "$label") ;;
-      interaction) body_text=$(printf '%s is waiting for user interaction.' "$label") ;;
+      finished) body_text='Finished a turn.' ;;
+      interaction) body_text='Waiting for user interaction.' ;;
     esac
   fi
 

@@ -1,9 +1,8 @@
 notify_tmux() {
   [ -n "${TMUX:-}" ] && have tmux || return 0
 
-  tmux_message=$(printf '%s: %s' "$title" "$body")
   tmux_menu_title=$(printf '%s' "$title" | tmux_escape_format)
-  tmux_menu_item=$(printf '%s' "$tmux_message" | limit_text 160 | tmux_escape_format)
+  tmux_menu_item=$(printf '%s' "$body" | limit_text 160 | tmux_escape_format)
   tmux_menu_command=$(tmux_focus_command)
 
   (
