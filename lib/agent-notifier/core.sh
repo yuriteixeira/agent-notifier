@@ -1,6 +1,6 @@
 usage() {
   cat >&2 <<'EOF'
-Usage: agent-notify --agent claude|codex|gemini --event finished|interaction [payload-json]
+Usage: agent-notifier --agent claude|codex|gemini --event finished|interaction [payload-json]
 
 Reads hook JSON from stdin by default. For Codex legacy notification commands,
 the first positional JSON payload is also accepted.
@@ -8,7 +8,7 @@ EOF
 }
 
 fail_usage() {
-  printf 'agent-notify: %s\n' "$1" >&2
+  printf 'agent-notifier: %s\n' "$1" >&2
   usage
   exit 64
 }

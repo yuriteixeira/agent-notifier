@@ -9,7 +9,14 @@ strip_config_value() {
 }
 
 load_ntfy_dotfile() {
-  config_file=${AGENT_NOTIFY_NTFY_ENV:-"$HOME/.config/agent-notify/ntfy.env"}
+  default_config_file=$HOME/.config/agent-notifier/ntfy.env
+
+  if [ -n "${AGENT_NOTIFIER_NTFY_ENV:-}" ]; then
+    config_file=$AGENT_NOTIFIER_NTFY_ENV
+  else
+    config_file=$default_config_file
+  fi
+
   [ -f "$config_file" ] || return 0
 
   while IFS= read -r line || [ -n "$line" ]; do

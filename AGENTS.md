@@ -4,8 +4,8 @@
 
 This repository ships a Bash utility for agent hook notifications.
 
-- `bin/agent-notify` is the main executable and module loader.
-- `lib/agent-notify/*.sh` contains focused runtime modules for CLI flow, shared helpers, tmux integration, and notification backends.
+- `bin/agent-notifier` is the main executable and module loader.
+- `lib/agent-notifier/*.sh` contains focused runtime modules for CLI flow, shared helpers, tmux integration, and notification backends.
 - `install.sh` and `uninstall.sh` manage local installation and printed hook snippets.
 - `test/run-tests.sh` is the shell test harness.
 - `test/fixtures/*.json` contains sample Claude, Codex, and Gemini hook payloads.
@@ -14,7 +14,7 @@ This repository ships a Bash utility for agent hook notifications.
 ## Build, Test, and Development Commands
 
 - `./test/run-tests.sh` runs the full test suite with mocked OS tools, tmux, and ntfy/curl behavior.
-- `printf '{}' | ./bin/agent-notify --agent claude --event finished` smoke-tests the CLI locally.
+- `printf '{}' | ./bin/agent-notifier --agent claude --event finished` smoke-tests the CLI locally.
 - `./install.sh` copies the executable and support modules under `~/.local` and prints configuration snippets.
 - `./install.sh --symlink` installs a symlink for local development.
 - `./uninstall.sh` removes the installed script and support modules but does not edit user hook configuration.
@@ -39,4 +39,4 @@ The history currently uses short lowercase summaries, such as `initial commit`. 
 
 ## Security & Configuration Tips
 
-Do not commit real ntfy topics, tokens, or personal hook configuration. Document examples with placeholders only. Treat `~/.config/agent-notify/ntfy.env` as local user state, not repository data.
+Do not commit real ntfy topics, tokens, or personal hook configuration. Document examples with placeholders only. Treat `~/.config/agent-notifier/ntfy.env` as local user state, not repository data.

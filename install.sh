@@ -6,7 +6,7 @@ usage() {
   cat <<'EOF'
 Usage: ./install.sh [--copy|--symlink] [--prefix DIR] [--bin-dir DIR]
 
-Installs bin/agent-notify and support modules under ~/.local by default, then
+Installs bin/agent-notifier and support modules under ~/.local by default, then
 prints configuration snippets for Claude Code, Codex CLI, and Gemini CLI.
 EOF
 }
@@ -51,12 +51,12 @@ if [ -z "$bin_dir" ]; then
   bin_dir="$prefix/bin"
 fi
 
-lib_dir="$(dirname -- "$bin_dir")/lib/agent-notify"
+lib_dir="$(dirname -- "$bin_dir")/lib/agent-notifier"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-src="$script_dir/bin/agent-notify"
-src_lib_dir="$script_dir/lib/agent-notify"
-dest="$bin_dir/agent-notify"
+src="$script_dir/bin/agent-notifier"
+src_lib_dir="$script_dir/lib/agent-notifier"
+dest="$bin_dir/agent-notifier"
 
 if [ ! -f "$src" ]; then
   echo "install.sh: missing $src" >&2
@@ -101,21 +101,40 @@ if ! "$dest" --help >/dev/null 2>&1; then
   exit 1
 fi
 
+snippet_path() {
+  case "$1" in
+    "$HOME"/*) printf '$HOME/%s' "${1#"$HOME"/}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+display_path() {
+  case "$1" in
+    "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
+    "$HOME") printf '~' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+snippet_dest=$(snippet_path "$dest")
+display_dest=$(display_path "$dest")
+display_lib_dir=$(display_path "$lib_dir")
+
 json_command() {
-  printf '\\"%s\\" --agent %s --event %s' "$dest" "$1" "$2"
+  printf '\\"%s\\" --agent %s --event %s' "$snippet_dest" "$1" "$2"
 }
 
 toml_command() {
-  printf '"%s" --agent %s --event %s' "$dest" "$1" "$2"
+  printf '"%s" --agent %s --event %s' "$snippet_dest" "$1" "$2"
 }
 
-echo "Installed $dest"
-echo "Installed support modules in $lib_dir"
+echo "Installed $display_dest"
+echo "Installed support modules in $display_lib_dir"
 case ":$PATH:" in
   *":$bin_dir:"*) ;;
   *)
     echo
-    echo "Note: $bin_dir is not currently on PATH. The snippets below use the absolute path."
+    echo "Note: $(display_path "$bin_dir") is not currently on PATH. The snippets below include the command path."
     ;;
 esac
 
@@ -217,7 +236,7 @@ Gemini CLI (~/.gemini/settings.json)
         "matcher": "*",
         "hooks": [
           {
-            "name": "agent-notify-finished",
+            "name": "agent-notifier-finished",
             "type": "command",
             "command": "$(json_command gemini finished)"
           }
@@ -229,8 +248,8 @@ Gemini CLI (~/.gemini/settings.json)
 
 Optional ntfy setup
 
-mkdir -p ~/.config/agent-notify
-cat > ~/.config/agent-notify/ntfy.env <<'NTFY'
+mkdir -p ~/.config/agent-notifier
+cat > ~/.config/agent-notifier/ntfy.env <<'NTFY'
 NTFY_TOPIC=replace-with-a-long-random-private-topic
 NTFY_SERVER=https://ntfy.sh
 # NTFY_TOKEN=optional-access-token

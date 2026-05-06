@@ -6,7 +6,7 @@ usage() {
   cat <<'EOF'
 Usage: ./uninstall.sh [--prefix DIR] [--bin-dir DIR]
 
-Removes the installed agent-notify script and support modules. Configuration
+Removes the installed agent-notifier script and support modules. Configuration
 snippets in Claude, Codex, Gemini, or ntfy files must be removed manually.
 EOF
 }
@@ -42,9 +42,9 @@ if [ -z "$bin_dir" ]; then
   bin_dir="$prefix/bin"
 fi
 
-lib_dir="$(dirname -- "$bin_dir")/lib/agent-notify"
+lib_dir="$(dirname -- "$bin_dir")/lib/agent-notifier"
 
-dest="$bin_dir/agent-notify"
+dest="$bin_dir/agent-notifier"
 
 if [ -e "$dest" ] || [ -L "$dest" ]; then
   rm "$dest"
@@ -73,8 +73,8 @@ fi
 cat <<'EOF'
 
 Manual cleanup reminders:
-- Remove agent-notify hook snippets from ~/.claude/settings.json.
-- Remove agent-notify hook snippets from ~/.codex/config.toml.
-- Remove agent-notify hook snippets from ~/.gemini/settings.json.
-- Remove ~/.config/agent-notify/ntfy.env if you no longer want ntfy settings.
+- Remove agent-notifier hook snippets from ~/.claude/settings.json.
+- Remove agent-notifier hook snippets from ~/.codex/config.toml.
+- Remove agent-notifier hook snippets from ~/.gemini/settings.json.
+- Remove ~/.config/agent-notifier/ntfy.env if you no longer want ntfy settings.
 EOF

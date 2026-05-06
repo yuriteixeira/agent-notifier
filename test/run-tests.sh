@@ -3,7 +3,7 @@
 set -u
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-SCRIPT="$ROOT/bin/agent-notify"
+SCRIPT="$ROOT/bin/agent-notifier"
 ORIGINAL_PATH=$PATH
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -66,8 +66,8 @@ new_case() {
   done
 
   CASE_PATH="$MOCKBIN:$TOOLBIN"
-  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFY_NTFY_ENV TMUX TMUX_PANE AGENT_NOTIFY_TEST_TMUX_SESSION_NAME AGENT_NOTIFY_TEST_TMUX_SESSION_ID AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME AGENT_NOTIFY_TEST_TMUX_WINDOW_ID AGENT_NOTIFY_TEST_TMUX_PANE_ID
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFIER_NTFY_ENV TMUX TMUX_PANE AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME AGENT_NOTIFIER_TEST_TMUX_SESSION_ID AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID AGENT_NOTIFIER_TEST_TMUX_PANE_ID
+  AGENT_NOTIFIER_TEST_UNAME=Linux
 }
 
 mock_cmd() {
@@ -81,7 +81,7 @@ mock_cmd() {
 }
 
 mock_uname() {
-  mock_cmd uname 'printf "%s\n" "$AGENT_NOTIFY_TEST_UNAME"'
+  mock_cmd uname 'printf "%s\n" "$AGENT_NOTIFIER_TEST_UNAME"'
 }
 
 mock_record() {
@@ -91,7 +91,7 @@ mock_record() {
     printf "\t%s" "$arg"
   done
   printf "\n"
-} >> "$AGENT_NOTIFY_TEST_LOG"'
+} >> "$AGENT_NOTIFIER_TEST_LOG"'
 }
 
 mock_tmux_session() {
@@ -101,7 +101,7 @@ mock_tmux_session() {
     printf "\t%s" "$arg"
   done
   printf "\n"
-} >> "$AGENT_NOTIFY_TEST_LOG"
+} >> "$AGENT_NOTIFIER_TEST_LOG"
 
 if [ "${1:-}" = "display-message" ] && [ "${2:-}" = "-p" ]; then
   format=${3:-}
@@ -109,54 +109,54 @@ if [ "${1:-}" = "display-message" ] && [ "${2:-}" = "-p" ]; then
     format=${5:-}
   fi
   case "$format" in
-    "#S") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_SESSION_NAME" ;;
-    "#{session_id}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_SESSION_ID" ;;
-    "#{client_name}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME" ;;
-    "#{window_id}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_WINDOW_ID" ;;
-    "#{pane_id}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_PANE_ID" ;;
+    "#S") printf "%s\n" "$AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME" ;;
+    "#{session_id}") printf "%s\n" "$AGENT_NOTIFIER_TEST_TMUX_SESSION_ID" ;;
+    "#{client_name}") printf "%s\n" "$AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME" ;;
+    "#{window_id}") printf "%s\n" "$AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID" ;;
+    "#{pane_id}") printf "%s\n" "$AGENT_NOTIFIER_TEST_TMUX_PANE_ID" ;;
   esac
 fi'
 }
 
-run_agent_notify_as() {
+run_agent_notifier_as() {
   local command_path=$1
   shift
   PATH="$CASE_PATH" \
     HOME="$HOME_DIR" \
-    AGENT_NOTIFY_TEST_LOG="$LOG" \
-    AGENT_NOTIFY_TEST_UNAME="${AGENT_NOTIFY_TEST_UNAME:-Linux}" \
+    AGENT_NOTIFIER_TEST_LOG="$LOG" \
+    AGENT_NOTIFIER_TEST_UNAME="${AGENT_NOTIFIER_TEST_UNAME:-Linux}" \
     TMUX="${TMUX:-}" \
     TMUX_PANE="${TMUX_PANE:-}" \
     NTFY_TOPIC="${NTFY_TOPIC:-}" \
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
-    AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
-    AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
-    AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
-    AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME:-}" \
-    AGENT_NOTIFY_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFY_TEST_TMUX_WINDOW_ID:-}" \
-    AGENT_NOTIFY_TEST_TMUX_PANE_ID="${AGENT_NOTIFY_TEST_TMUX_PANE_ID:-}" \
+    AGENT_NOTIFIER_NTFY_ENV="${AGENT_NOTIFIER_NTFY_ENV:-}" \
+    AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME:-}" \
+    AGENT_NOTIFIER_TEST_TMUX_SESSION_ID="${AGENT_NOTIFIER_TEST_TMUX_SESSION_ID:-}" \
+    AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME:-}" \
+    AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID:-}" \
+    AGENT_NOTIFIER_TEST_TMUX_PANE_ID="${AGENT_NOTIFIER_TEST_TMUX_PANE_ID:-}" \
     "$command_path" "$@"
 }
 
-run_agent_notify() {
-  run_agent_notify_as "$SCRIPT" "$@"
+run_agent_notifier() {
+  run_agent_notifier_as "$SCRIPT" "$@"
 }
 
 run_payload() {
   local input=$1
   shift
-  printf '%s' "$input" | run_agent_notify "$@"
+  printf '%s' "$input" | run_agent_notifier "$@"
 }
 
 run_fixture() {
   local fixture=$1
   shift
-  run_agent_notify "$@" <"$ROOT/test/fixtures/$fixture"
+  run_agent_notifier "$@" <"$ROOT/test/fixtures/$fixture"
 }
 
 run_no_stdin() {
-  run_agent_notify "$@"
+  run_agent_notifier "$@"
 }
 
 assert_log_contains() {
@@ -198,7 +198,7 @@ assert_log_empty() {
 
 test_macos_uses_osascript() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Darwin
+  AGENT_NOTIFIER_TEST_UNAME=Darwin
   mock_uname
   mock_record osascript
   mock_record notify-send
@@ -211,7 +211,7 @@ test_macos_uses_osascript() {
 
 test_linux_uses_notify_send() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record osascript
   mock_record notify-send
@@ -224,7 +224,7 @@ test_linux_uses_notify_send() {
 
 test_missing_os_backend_exits_successfully() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
 
   run_payload '{}' --agent gemini --event finished || return 1
@@ -233,14 +233,14 @@ test_missing_os_backend_exits_successfully() {
 
 test_tmux_attempted_when_available() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   TMUX=/tmp/tmux-session
   TMUX_PANE='%34'
-  AGENT_NOTIFY_TEST_TMUX_SESSION_NAME=agent-work
-  AGENT_NOTIFY_TEST_TMUX_SESSION_ID='$9'
-  AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME=/dev/ttys015
-  AGENT_NOTIFY_TEST_TMUX_WINDOW_ID='@12'
-  AGENT_NOTIFY_TEST_TMUX_PANE_ID='%34'
+  AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME=agent-work
+  AGENT_NOTIFIER_TEST_TMUX_SESSION_ID='$9'
+  AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME=/dev/ttys015
+  AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID='@12'
+  AGENT_NOTIFIER_TEST_TMUX_PANE_ID='%34'
   mock_uname
   mock_tmux_session
 
@@ -262,14 +262,14 @@ test_tmux_attempted_when_available() {
 
 test_tmux_session_added_to_local_notification() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   TMUX=/tmp/tmux-session
   TMUX_PANE='%34'
-  AGENT_NOTIFY_TEST_TMUX_SESSION_NAME=agent-work
-  AGENT_NOTIFY_TEST_TMUX_SESSION_ID='$9'
-  AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME=/dev/ttys015
-  AGENT_NOTIFY_TEST_TMUX_WINDOW_ID='@12'
-  AGENT_NOTIFY_TEST_TMUX_PANE_ID='%34'
+  AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME=agent-work
+  AGENT_NOTIFIER_TEST_TMUX_SESSION_ID='$9'
+  AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME=/dev/ttys015
+  AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID='@12'
+  AGENT_NOTIFIER_TEST_TMUX_PANE_ID='%34'
   mock_uname
   mock_tmux_session
   mock_record notify-send
@@ -281,7 +281,7 @@ test_tmux_session_added_to_local_notification() {
 
 test_tmux_skipped_when_command_missing() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   TMUX=/tmp/tmux-session
   mock_uname
 
@@ -291,7 +291,7 @@ test_tmux_skipped_when_command_missing() {
 
 test_ntfy_skipped_without_topic() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record curl
 
@@ -301,14 +301,14 @@ test_ntfy_skipped_without_topic() {
 
 test_ntfy_dotfile_fallback() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record curl
-  mkdir -p "$HOME_DIR/.config/agent-notify"
+  mkdir -p "$HOME_DIR/.config/agent-notifier"
   {
     printf '%s\n' 'NTFY_TOPIC=file-topic'
     printf '%s\n' 'NTFY_SERVER=https://ntfy.example'
-  } >"$HOME_DIR/.config/agent-notify/ntfy.env"
+  } >"$HOME_DIR/.config/agent-notifier/ntfy.env"
 
   run_payload '{"message":"done"}' --agent codex --event finished || return 1
   assert_log_contains 'https://ntfy.example/file-topic'
@@ -318,16 +318,16 @@ test_ntfy_dotfile_fallback() {
 
 test_ntfy_env_wins_over_dotfile() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   NTFY_TOPIC=env-topic
   NTFY_SERVER=https://env.example
   mock_uname
   mock_record curl
-  mkdir -p "$HOME_DIR/.config/agent-notify"
+  mkdir -p "$HOME_DIR/.config/agent-notifier"
   {
     printf '%s\n' 'NTFY_TOPIC=file-topic'
     printf '%s\n' 'NTFY_SERVER=https://file.example'
-  } >"$HOME_DIR/.config/agent-notify/ntfy.env"
+  } >"$HOME_DIR/.config/agent-notifier/ntfy.env"
 
   run_payload '{"message":"done"}' --agent codex --event finished || return 1
   assert_log_contains 'https://env.example/env-topic'
@@ -336,7 +336,7 @@ test_ntfy_env_wins_over_dotfile() {
 
 test_ntfy_priorities() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   NTFY_TOPIC=topic
   mock_uname
   mock_record curl
@@ -351,7 +351,7 @@ test_ntfy_priorities() {
 
 test_claude_fixture_title_body() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Darwin
+  AGENT_NOTIFIER_TEST_UNAME=Darwin
   mock_uname
   mock_record osascript
 
@@ -362,7 +362,7 @@ test_claude_fixture_title_body() {
 
 test_codex_fixture_title_body() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record notify-send
 
@@ -373,7 +373,7 @@ test_codex_fixture_title_body() {
 
 test_gemini_fixture_title_body() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Darwin
+  AGENT_NOTIFIER_TEST_UNAME=Darwin
   mock_uname
   mock_record osascript
 
@@ -384,7 +384,7 @@ test_gemini_fixture_title_body() {
 
 test_codex_legacy_positional_payload() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record notify-send
 
@@ -395,13 +395,13 @@ test_codex_legacy_positional_payload() {
 
 test_markdown_payload_becomes_plain_text() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record notify-send
 
-  run_payload '{"title":"**Build** `done`","message":"### Summary\n- Updated `bin/agent-notify`\n- See [README](https://example.test/readme)","cwd":"/tmp/project"}' --agent codex --event finished || return 1
+  run_payload '{"title":"**Build** `done`","message":"### Summary\n- Updated `bin/agent-notifier`\n- See [README](https://example.test/readme)","cwd":"/tmp/project"}' --agent codex --event finished || return 1
   assert_log_contains 'Build done' || return 1
-  assert_log_contains 'Summary Updated bin/agent-notify See README (/tmp/project)' || return 1
+  assert_log_contains 'Summary Updated bin/agent-notifier See README (/tmp/project)' || return 1
   assert_log_not_contains '**Build**' || return 1
   assert_log_not_contains '[README](https://example.test/readme)'
 }
@@ -418,12 +418,12 @@ test_invalid_flags_fail() {
 
 test_symlinked_script_uses_source_modules() {
   new_case || return 1
-  AGENT_NOTIFY_TEST_UNAME=Linux
+  AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record notify-send
-  ln -s "$SCRIPT" "$TMP_ROOT/agent-notify"
+  ln -s "$SCRIPT" "$TMP_ROOT/agent-notifier"
 
-  printf '{}' | run_agent_notify_as "$TMP_ROOT/agent-notify" --agent codex --event finished || return 1
+  printf '{}' | run_agent_notifier_as "$TMP_ROOT/agent-notifier" --agent codex --event finished || return 1
   assert_log_contains 'notify-send' || return 1
   assert_log_contains 'Codex CLI finished'
 }

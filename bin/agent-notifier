@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+agent_notifier_dirname() {
+  case "$1" in
+    */*) printf '%s\n' "${1%/*}" ;;
+    *) printf '.\n' ;;
+  esac
+}
+
+agent_notifier_abs_dir() {
+  agent_notifier_path_dir=$(agent_notifier_dirname "$1")
+  CDPATH= cd -- "$agent_notifier_path_dir" && pwd
+}
+
+agent_notifier_script_path=${BASH_SOURCE[0]}
+agent_notifier_script_dir=$(agent_notifier_abs_dir "$agent_notifier_script_path") || {
+  printf 'agent-notifier: could not resolve script directory\n' >&2
+  exit 70
+}
+
+agent_notifier_default_lib_dir=$agent_notifier_script_dir/../lib/agent-notifier
+agent_notifier_symlink_lib_dir=
+
+if [ -L "$agent_notifier_script_path" ] && command -v readlink >/dev/null 2>&1; then
+  agent_notifier_link_target=$(readlink "$agent_notifier_script_path" 2>/dev/null || true)
+  if [ -n "$agent_notifier_link_target" ]; then
+    case "$agent_notifier_link_target" in
+      /*) agent_notifier_target_path=$agent_notifier_link_target ;;
+      *) agent_notifier_target_path=$agent_notifier_script_dir/$agent_notifier_link_target ;;
+    esac
+    agent_notifier_target_dir=$(agent_notifier_abs_dir "$agent_notifier_target_path" 2>/dev/null || true)
+    if [ -n "$agent_notifier_target_dir" ]; then
+      agent_notifier_symlink_lib_dir=$agent_notifier_target_dir/../lib/agent-notifier
+    fi
+  fi
+fi
+
+if [ -n "${AGENT_NOTIFIER_LIB_DIR:-}" ]; then
+  agent_notifier_lib_dir=$AGENT_NOTIFIER_LIB_DIR
+elif [ -d "$agent_notifier_default_lib_dir" ]; then
+  agent_notifier_lib_dir=$agent_notifier_default_lib_dir
+elif [ -n "$agent_notifier_symlink_lib_dir" ] && [ -d "$agent_notifier_symlink_lib_dir" ]; then
+  agent_notifier_lib_dir=$agent_notifier_symlink_lib_dir
+else
+  agent_notifier_lib_dir=$agent_notifier_default_lib_dir
+fi
+
+for agent_notifier_module in core tmux notify_local notify_tmux notify_ntfy notify cli; do
+  agent_notifier_module_path=$agent_notifier_lib_dir/$agent_notifier_module.sh
+  if [ ! -f "$agent_notifier_module_path" ]; then
+    printf 'agent-notifier: missing module: %s\n' "$agent_notifier_module_path" >&2
+    exit 70
+  fi
+  . "$agent_notifier_module_path"
+done
+
+main "$@"
+exit 0

@@ -1,14 +1,14 @@
-# agent-notify
+# agent-notifier
 
 One small local notifier for Claude Code, Codex CLI, and Gemini CLI hooks.
 
-`agent-notify` sends best-effort notifications when an agent finishes a turn or
+`agent-notifier` sends best-effort notifications when an agent finishes a turn or
 needs user interaction. It uses local OS notifications, tmux messages when
 running inside tmux, and optional remote ntfy publishing.
 
 ## Features
 
-- Small Bash CLI: `bin/agent-notify` with support modules in `lib/agent-notify/`
+- Small Bash CLI: `bin/agent-notifier` with support modules in `lib/agent-notifier/`
 - macOS local notifications through `osascript`
 - Linux local notifications through `notify-send`
 - tmux session names in notification text when running inside tmux
@@ -29,15 +29,15 @@ Clone the repo, then run:
 ./install.sh
 ```
 
-By default this copies `bin/agent-notify` and its support modules to:
+By default this copies `bin/agent-notifier` and its support modules to:
 
 ```text
-~/.local/bin/agent-notify
-~/.local/lib/agent-notify/
+~/.local/bin/agent-notifier
+~/.local/lib/agent-notifier/
 ```
 
 When `--bin-dir` is used, support modules are installed in a sibling
-`lib/agent-notify/` directory next to the chosen bin directory.
+`lib/agent-notifier/` directory next to the chosen bin directory.
 
 To install as a symlink instead:
 
@@ -48,7 +48,7 @@ To install as a symlink instead:
 To install somewhere else:
 
 ```sh
-./install.sh --prefix /opt/agent-notify
+./install.sh --prefix /opt/agent-notifier
 ./install.sh --bin-dir "$HOME/bin"
 ```
 
@@ -68,9 +68,9 @@ ntfy config files.
 ## Usage
 
 ```sh
-printf '{}' | agent-notify --agent claude --event finished
-printf '{"message":"Permission required"}' | agent-notify --agent codex --event interaction
-printf '{"last_assistant_message":"Done"}' | agent-notify --agent gemini --event finished
+printf '{}' | agent-notifier --agent claude --event finished
+printf '{"message":"Permission required"}' | agent-notifier --agent codex --event interaction
+printf '{"last_assistant_message":"Done"}' | agent-notifier --agent gemini --event finished
 ```
 
 Supported agents:
@@ -86,11 +86,11 @@ Supported events:
 
 For Codex legacy notification commands, JSON can be passed as the first
 positional argument. If no agent is specified and a JSON payload is present,
-`agent-notify` treats it as a Codex payload and derives the event from common
+`agent-notifier` treats it as a Codex payload and derives the event from common
 fields such as `notification_type`, `hook_event_name`, `event`, and `type`.
 
 ```sh
-agent-notify '{"notification_type":"agent-turn-complete","message":"Done"}'
+agent-notifier '{"notification_type":"agent-turn-complete","message":"Done"}'
 ```
 
 ## Claude Code
@@ -106,7 +106,7 @@ installed somewhere other than `~/.local/bin`.
         "hooks": [
           {
             "type": "command",
-            "command": "\"/Users/you/.local/bin/agent-notify\" --agent claude --event finished",
+            "command": "\"$HOME/.local/bin/agent-notifier\" --agent claude --event finished",
             "async": true
           }
         ]
@@ -118,7 +118,7 @@ installed somewhere other than `~/.local/bin`.
         "hooks": [
           {
             "type": "command",
-            "command": "\"/Users/you/.local/bin/agent-notify\" --agent claude --event interaction",
+            "command": "\"$HOME/.local/bin/agent-notifier\" --agent claude --event interaction",
             "async": true
           }
         ]
@@ -129,7 +129,7 @@ installed somewhere other than `~/.local/bin`.
         "hooks": [
           {
             "type": "command",
-            "command": "\"/Users/you/.local/bin/agent-notify\" --agent claude --event interaction",
+            "command": "\"$HOME/.local/bin/agent-notifier\" --agent claude --event interaction",
             "async": true
           }
         ]
@@ -140,7 +140,7 @@ installed somewhere other than `~/.local/bin`.
         "hooks": [
           {
             "type": "command",
-            "command": "\"/Users/you/.local/bin/agent-notify\" --agent claude --event interaction",
+            "command": "\"$HOME/.local/bin/agent-notifier\" --agent claude --event interaction",
             "async": true
           }
         ]
@@ -151,7 +151,7 @@ installed somewhere other than `~/.local/bin`.
         "hooks": [
           {
             "type": "command",
-            "command": "\"/Users/you/.local/bin/agent-notify\" --agent claude --event interaction",
+            "command": "\"$HOME/.local/bin/agent-notifier\" --agent claude --event interaction",
             "async": true
           }
         ]
@@ -174,7 +174,7 @@ codex_hooks = true
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"
-command = '"/Users/you/.local/bin/agent-notify" --agent codex --event finished'
+command = '"$HOME/.local/bin/agent-notifier" --agent codex --event finished'
 timeout = 5
 statusMessage = "Sending notification"
 
@@ -182,7 +182,7 @@ statusMessage = "Sending notification"
 matcher = "*"
 [[hooks.PermissionRequest.hooks]]
 type = "command"
-command = '"/Users/you/.local/bin/agent-notify" --agent codex --event interaction'
+command = '"$HOME/.local/bin/agent-notifier" --agent codex --event interaction'
 timeout = 5
 statusMessage = "Sending notification"
 ```
@@ -210,9 +210,9 @@ needed.
         "matcher": "*",
         "hooks": [
           {
-            "name": "agent-notify-finished",
+            "name": "agent-notifier-finished",
             "type": "command",
-            "command": "\"/Users/you/.local/bin/agent-notify\" --agent gemini --event finished"
+            "command": "\"$HOME/.local/bin/agent-notifier\" --agent gemini --event finished"
           }
         ]
       }
@@ -223,7 +223,7 @@ needed.
 
 `general.enableNotifications` covers Gemini terminal notifications for
 action-required prompts and session completion. The hook above adds the shared
-`agent-notify` completion path.
+`agent-notifier` completion path.
 
 Gemini settings docs:
 <https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/settings.md>
@@ -233,7 +233,7 @@ Gemini hook docs:
 
 ## ntfy
 
-ntfy is opt-in. If no topic is configured, `agent-notify` skips ntfy silently.
+ntfy is opt-in. If no topic is configured, `agent-notifier` skips ntfy silently.
 
 Configuration is read from environment variables first:
 
@@ -243,17 +243,17 @@ export NTFY_SERVER=https://ntfy.sh
 export NTFY_TOKEN=optional-access-token
 ```
 
-If `NTFY_TOPIC` is not set, `agent-notify` falls back to:
+If `NTFY_TOPIC` is not set, `agent-notifier` falls back to:
 
 ```text
-~/.config/agent-notify/ntfy.env
+~/.config/agent-notifier/ntfy.env
 ```
 
 Example:
 
 ```sh
-mkdir -p ~/.config/agent-notify
-cat > ~/.config/agent-notify/ntfy.env <<'EOF'
+mkdir -p ~/.config/agent-notifier
+cat > ~/.config/agent-notifier/ntfy.env <<'EOF'
 NTFY_TOPIC=replace-with-a-long-random-private-topic
 NTFY_SERVER=https://ntfy.sh
 # NTFY_TOKEN=optional-access-token
@@ -279,8 +279,8 @@ bash test/run-tests.sh
 Manual smoke tests:
 
 ```sh
-printf '{}' | ~/.local/bin/agent-notify --agent claude --event finished
-printf '{"cwd":"'"$PWD"'","message":"Permission required"}' | NTFY_TOPIC=replace-with-a-long-random-private-topic ~/.local/bin/agent-notify --agent codex --event interaction
+printf '{}' | ~/.local/bin/agent-notifier --agent claude --event finished
+printf '{"cwd":"'"$PWD"'","message":"Permission required"}' | NTFY_TOPIC=replace-with-a-long-random-private-topic ~/.local/bin/agent-notifier --agent codex --event interaction
 ```
 
 Run those inside and outside tmux. Backend failures should not make the command
@@ -297,7 +297,10 @@ fail.
   `display-menu` to focus the originating session, window, and pane; older tmux
   versions fall back to a styled `display-message`.
 - No ntfy message: confirm `curl` exists and `NTFY_TOPIC` is set in the hook
-  environment or in `~/.config/agent-notify/ntfy.env`.
+  environment or in `~/.config/agent-notifier/ntfy.env`.
+- Hook exits with code `127`: run `./install.sh` and make sure the hook
+  command points to `$HOME/.local/bin/agent-notifier` or your custom install
+  path.
 - Hook config does not load: validate each tool separately. Claude users can
   inspect `/hooks`; Codex users should confirm hooks load on startup; Gemini
   users should confirm `settings.json` parses.
