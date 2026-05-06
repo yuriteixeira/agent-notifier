@@ -174,6 +174,11 @@ Add this shape to `~/.codex/config.toml`, adjusting the command path if needed.
 [features]
 codex_hooks = true
 
+[tui]
+notifications = true
+notification_condition = "always"
+notification_method = "auto"
+
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"
@@ -191,8 +196,10 @@ statusMessage = "Sending notification"
 ```
 
 Codex hooks are behind the `codex_hooks` feature flag. Codex also has terminal
-notification settings for supported completion and action-required surfaces;
-use those in addition to hooks if you want built-in TUI notifications.
+notification settings for action-required surfaces that hooks do not cover,
+including plan-mode questions. If you already have a `[tui]` table, merge the
+three notification keys into that existing table instead of adding a second
+`[tui]` header.
 
 Codex hook docs: <https://developers.openai.com/codex/hooks>
 

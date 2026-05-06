@@ -532,6 +532,18 @@ test_install_copy_runs_from_temp_prefix() {
     printf 'Gemini interaction command is missing from install output\n' >&2
     return 1
   }
+  grep -F '[tui]' "$TMP_ROOT/install.out" >/dev/null 2>&1 || {
+    printf 'Codex TUI notification table is missing from install output\n' >&2
+    return 1
+  }
+  grep -F 'notifications = true' "$TMP_ROOT/install.out" >/dev/null 2>&1 || {
+    printf 'Codex TUI notifications are missing from install output\n' >&2
+    return 1
+  }
+  grep -F 'notification_condition = "always"' "$TMP_ROOT/install.out" >/dev/null 2>&1 || {
+    printf 'Codex notification condition is missing from install output\n' >&2
+    return 1
+  }
 
   [ -f "$install_prefix/bin/agent-notifier" ] || {
     printf 'installed executable is missing\n' >&2

@@ -203,6 +203,11 @@ Codex CLI (~/.codex/config.toml)
 [features]
 codex_hooks = true
 
+[tui]
+notifications = true
+notification_condition = "always"
+notification_method = "auto"
+
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"
