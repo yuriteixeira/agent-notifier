@@ -25,6 +25,7 @@ main() {
   run_test 'Claude fixture produces expected notification' test_claude_fixture_title_body
   run_test 'Codex fixture produces expected notification' test_codex_fixture_title_body
   run_test 'Gemini fixture produces expected notification' test_gemini_fixture_title_body
+  run_test 'Gemini notification fixture produces expected interaction' test_gemini_notification_fixture_title_body
   run_test 'Codex legacy positional payload works' test_codex_legacy_positional_payload
   run_test 'Markdown payloads become plain text' test_markdown_payload_becomes_plain_text
   run_test 'invalid flags fail' test_invalid_flags_fail
@@ -457,6 +458,17 @@ test_gemini_fixture_title_body() {
   assert_log_contains 'Gemini finished the requested change.'
 }
 
+test_gemini_notification_fixture_title_body() {
+  new_case || return 1
+  AGENT_NOTIFIER_TEST_UNAME=Darwin
+  mock_uname
+  mock_record osascript
+
+  run_fixture gemini-notification.json --agent gemini --event interaction || return 1
+  assert_log_contains 'Gemini CLI needs input' || return 1
+  assert_log_contains 'Allow run_shell_command?'
+}
+
 test_codex_legacy_positional_payload() {
   new_case || return 1
   AGENT_NOTIFIER_TEST_UNAME=Linux
@@ -512,6 +524,14 @@ test_install_copy_runs_from_temp_prefix() {
   install_prefix="$TMP_ROOT/prefix"
 
   PATH="$ORIGINAL_PATH" "$ROOT/install.sh" --prefix "$install_prefix" >"$TMP_ROOT/install.out" || return 1
+  grep -F '"name": "agent-notifier-interaction"' "$TMP_ROOT/install.out" >/dev/null 2>&1 || {
+    printf 'Gemini interaction hook is missing from install output\n' >&2
+    return 1
+  }
+  grep -F -- '--agent gemini --event interaction' "$TMP_ROOT/install.out" >/dev/null 2>&1 || {
+    printf 'Gemini interaction command is missing from install output\n' >&2
+    return 1
+  }
 
   [ -f "$install_prefix/bin/agent-notifier" ] || {
     printf 'installed executable is missing\n' >&2

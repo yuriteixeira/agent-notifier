@@ -1,0 +1,10 @@
+{
+  "session_id": "gemini-session-1",
+  "cwd": "/tmp/gemini-app",
+  "hook_event_name": "Notification",
+  "notification_type": "ToolPermission",
+  "message": "Allow run_shell_command?",
+  "details": {
+    "tool_name": "run_shell_command"
+  }
+}

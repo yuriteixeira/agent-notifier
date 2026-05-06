@@ -219,14 +219,26 @@ needed.
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "agent-notifier-interaction",
+            "type": "command",
+            "command": "\"$HOME/.local/bin/agent-notifier\" --agent gemini --event interaction"
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-`general.enableNotifications` covers Gemini terminal notifications for
-action-required prompts and session completion. The hook above adds the shared
-`agent-notifier` completion path.
+`AfterAgent` covers completed turns. `Notification` covers Gemini system alerts
+such as tool permission prompts, and forwards them through the shared
+`agent-notifier` interaction path.
 
 Gemini settings docs:
 <https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/settings.md>

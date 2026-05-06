@@ -237,6 +237,18 @@ Gemini CLI (~/.gemini/settings.json)
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "agent-notifier-interaction",
+            "type": "command",
+            "command": "$(json_command gemini interaction)"
+          }
+        ]
+      }
     ]
   }
 }
