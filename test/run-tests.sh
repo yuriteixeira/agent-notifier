@@ -188,6 +188,20 @@ assert_log_contains() {
   fi
 }
 
+wait_log_contains() {
+  local needle=$1
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    if grep -F -- "$needle" "$LOG" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  printf 'expected log to contain: %s\n' "$needle" >&2
+  return 1
+}
+
 assert_log_not_contains() {
   local needle=$1
   if grep -F -- "$needle" "$LOG" >/dev/null 2>&1; then
@@ -258,7 +272,7 @@ test_tmux_attempted_when_available() {
   assert_log_contains 'display-message	-p	#{client_name}' || return 1
   assert_log_contains 'display-message	-p	-t	%34	#{window_id}' || return 1
   assert_log_contains 'display-message	-p	-t	%34	#{pane_id}' || return 1
-  assert_log_contains 'display-menu' || return 1
+  wait_log_contains 'display-menu' || return 1
   assert_log_contains '-x	C' || return 1
   assert_log_contains '-y	C' || return 1
   assert_log_contains 'bg=yellow,fg=black,bold' || return 1
@@ -319,6 +333,8 @@ test_ntfy_dotfile_fallback() {
 
   run_payload '{"message":"done"}' --agent codex --event finished || return 1
   assert_log_contains 'https://ntfy.example/file-topic'
+  assert_log_contains '--connect-timeout	2' || return 1
+  assert_log_contains '--max-time	3'
 }
 
 test_ntfy_env_wins_over_dotfile() {
