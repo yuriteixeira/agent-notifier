@@ -2,6 +2,112 @@
 
 set -eu
 
+main() {
+  parse_args "$@"
+  set_uninstall_paths
+  remove_installed_script
+  remove_support_modules
+  print_manual_cleanup_reminders
+}
+
+parse_args() {
+  prefix=${PREFIX:-"$HOME/.local"}
+  bin_dir=
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --prefix)
+        [ "$#" -ge 2 ] || { echo "uninstall.sh: --prefix requires a value" >&2; exit 64; }
+        prefix=$2
+        shift 2
+        ;;
+      --bin-dir)
+        [ "$#" -ge 2 ] || { echo "uninstall.sh: --bin-dir requires a value" >&2; exit 64; }
+        bin_dir=$2
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "uninstall.sh: unknown argument: $1" >&2
+        usage >&2
+        exit 64
+        ;;
+    esac
+  done
+}
+
+set_uninstall_paths() {
+  if [ -z "$bin_dir" ]; then
+    bin_dir="$prefix/bin"
+  fi
+
+  lib_dir="$(dirname -- "$bin_dir")/lib/agent-notifier"
+  dest="$bin_dir/agent-notifier"
+}
+
+remove_installed_script() {
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    rm "$dest"
+    echo "Removed $dest"
+  else
+    echo "No installed script found at $dest"
+  fi
+}
+
+remove_support_modules() {
+  if [ -L "$lib_dir" ]; then
+    remove_symlinked_module_dir
+  else
+    remove_copied_modules
+  fi
+}
+
+print_manual_cleanup_reminders() {
+  cat <<'EOF'
+
+Manual cleanup reminders:
+- Remove agent-notifier hook snippets from ~/.claude/settings.json.
+- Remove agent-notifier hook snippets from ~/.codex/config.toml.
+- Remove agent-notifier hook snippets from ~/.gemini/settings.json.
+- Remove ~/.config/agent-notifier/ntfy.env if you no longer want ntfy settings.
+EOF
+}
+
+remove_symlinked_module_dir() {
+  rm "$lib_dir"
+  echo "Removed support module directory $lib_dir"
+}
+
+remove_copied_modules() {
+  removed_modules=0
+  for module in bootstrap cli core notify notify_local notify_tmux notify_ntfy tmux; do
+    remove_copied_module "$module"
+  done
+
+  print_copied_module_result
+}
+
+remove_copied_module() {
+  module_path="$lib_dir/$1.sh"
+  if [ -e "$module_path" ] || [ -L "$module_path" ]; then
+    rm "$module_path"
+    removed_modules=1
+  fi
+}
+
+print_copied_module_result() {
+  if rmdir "$lib_dir" 2>/dev/null; then
+    echo "Removed support module directory $lib_dir"
+  elif [ "$removed_modules" -eq 1 ]; then
+    echo "Removed support modules from $lib_dir"
+  else
+    echo "No support modules found at $lib_dir"
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage: ./uninstall.sh [--prefix DIR] [--bin-dir DIR]
@@ -11,75 +117,4 @@ snippets in Claude, Codex, Gemini, or ntfy files must be removed manually.
 EOF
 }
 
-prefix=${PREFIX:-"$HOME/.local"}
-bin_dir=
-
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --prefix)
-      [ "$#" -ge 2 ] || { echo "uninstall.sh: --prefix requires a value" >&2; exit 64; }
-      prefix=$2
-      shift 2
-      ;;
-    --bin-dir)
-      [ "$#" -ge 2 ] || { echo "uninstall.sh: --bin-dir requires a value" >&2; exit 64; }
-      bin_dir=$2
-      shift 2
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "uninstall.sh: unknown argument: $1" >&2
-      usage >&2
-      exit 64
-      ;;
-  esac
-done
-
-if [ -z "$bin_dir" ]; then
-  bin_dir="$prefix/bin"
-fi
-
-lib_dir="$(dirname -- "$bin_dir")/lib/agent-notifier"
-
-dest="$bin_dir/agent-notifier"
-
-if [ -e "$dest" ] || [ -L "$dest" ]; then
-  rm "$dest"
-  echo "Removed $dest"
-else
-  echo "No installed script found at $dest"
-fi
-
-if [ -L "$lib_dir" ]; then
-  rm "$lib_dir"
-  echo "Removed support module directory $lib_dir"
-else
-  removed_modules=0
-  for module in bootstrap cli core notify notify_local notify_tmux notify_ntfy tmux; do
-    module_path="$lib_dir/$module.sh"
-    if [ -e "$module_path" ] || [ -L "$module_path" ]; then
-      rm "$module_path"
-      removed_modules=1
-    fi
-  done
-
-  if rmdir "$lib_dir" 2>/dev/null; then
-    echo "Removed support module directory $lib_dir"
-  elif [ "$removed_modules" -eq 1 ]; then
-    echo "Removed support modules from $lib_dir"
-  else
-    echo "No support modules found at $lib_dir"
-  fi
-fi
-
-cat <<'EOF'
-
-Manual cleanup reminders:
-- Remove agent-notifier hook snippets from ~/.claude/settings.json.
-- Remove agent-notifier hook snippets from ~/.codex/config.toml.
-- Remove agent-notifier hook snippets from ~/.gemini/settings.json.
-- Remove ~/.config/agent-notifier/ntfy.env if you no longer want ntfy settings.
-EOF
+main "$@"

@@ -13,75 +13,21 @@ fail_usage() {
   exit 64
 }
 
-have() {
-  command -v "$1" >/dev/null 2>&1
+title_for() {
+  payload_title=$(payload_title_text)
+  if [ -n "$payload_title" ]; then
+    printf '%s' "$payload_title"
+    return 0
+  fi
+
+  default_title
 }
 
-squash_ws() {
-  tr '\r\n\t' '   ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
-}
-
-limit_text() {
-  awk -v max="$1" '{
-    if (length($0) > max) {
-      print substr($0, 1, max - 3) "..."
-    } else {
-      print
-    }
-  }'
-}
-
-lower() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
-}
-
-markdown_to_plain() {
-  sed -E '
-    s/!\[([^][]*)\]\([^)]*\)/\1/g
-    s/\[([^][]*)\]\([^)]*\)/\1/g
-    s/```[[:alnum:]_+-]*[[:space:]]*/ /g
-    s/```/ /g
-    s/`([^`]*)`/\1/g
-    s/~~([^~]*)~~/\1/g
-    s/(^|[[:space:]])#{1,6}[[:space:]]+/\1/g
-    s/(^|[[:space:]])>[[:space:]]+/\1/g
-    s/(^|[[:space:]])[-+*][[:space:]]+/\1/g
-    s/(^|[[:space:]])[0-9]+[.)][[:space:]]+/\1/g
-    s/\*\*([^*]*)\*\*/\1/g
-    s/\*([^*]*)\*/\1/g
-  '
-}
-
-json_unescape() {
-  sed 's/\\"/"/g; s/\\\\/\\/g; s/\\n/ /g; s/\\r/ /g; s/\\t/ /g'
-}
-
-json_string_value() {
-  key=$1
-  [ -n "${payload:-}" ] || return 0
-  printf '%s' "$payload" |
-    tr '\n' ' ' |
-    sed -nE 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p' |
-    head -n 1 |
-    json_unescape
-}
-
-first_json_value() {
-  for key in "$@"; do
-    value=$(json_string_value "$key")
-    if [ -n "$value" ]; then
-      printf '%s' "$value"
-      return 0
-    fi
-  done
-}
-
-agent_label() {
-  case "$1" in
-    claude) printf 'Claude Code' ;;
-    codex) printf 'Codex CLI' ;;
-    gemini) printf 'Gemini CLI' ;;
-  esac
+body_for() {
+  body_text=$(notification_body_text)
+  body_text=$(printf '%s' "$body_text" | markdown_to_plain | squash_ws)
+  body_text=$(body_with_tmux_session "$body_text")
+  printf '%s' "$body_text" | limit_text 420
 }
 
 event_from_payload() {
@@ -106,13 +52,14 @@ normalize_agent() {
   esac
 }
 
-title_for() {
+payload_title_text() {
   payload_title=$(first_json_value title)
   if [ -n "$payload_title" ]; then
     printf '%s' "$payload_title" | markdown_to_plain | squash_ws | limit_text 96
-    return 0
   fi
+}
 
+default_title() {
   label=$(agent_label "$agent")
   case "$event" in
     finished) printf '%s finished' "$label" ;;
@@ -120,26 +67,103 @@ title_for() {
   esac
 }
 
-body_for() {
+notification_body_text() {
   message=$(first_json_value message last_assistant_message last-assistant-message description reason prompt summary)
   cwd=$(first_json_value cwd current_working_directory current-working-directory workspace_dir workspace-dir)
 
   if [ -n "$message" ] && [ -n "$cwd" ]; then
-    body_text=$(printf '%s (%s)' "$message" "$cwd")
+    printf '%s (%s)' "$message" "$cwd"
   elif [ -n "$message" ]; then
-    body_text=$(printf '%s' "$message")
+    printf '%s' "$message"
   elif [ -n "$cwd" ]; then
-    body_text=$(printf 'Working directory: %s' "$cwd")
+    printf 'Working directory: %s' "$cwd"
   else
-    case "$event" in
-      finished) body_text='Finished a turn.' ;;
-      interaction) body_text='Waiting for user interaction.' ;;
-    esac
+    default_body_text
   fi
+}
 
-  body_text=$(printf '%s' "$body_text" | markdown_to_plain | squash_ws)
+default_body_text() {
+  case "$event" in
+    finished) printf 'Finished a turn.' ;;
+    interaction) printf 'Waiting for user interaction.' ;;
+  esac
+}
+
+body_with_tmux_session() {
   if [ -n "${tmux_session:-}" ]; then
-    body_text=$(printf '[%s] %s' "$tmux_session" "$body_text")
+    printf '[%s] %s' "$tmux_session" "$1"
+  else
+    printf '%s' "$1"
   fi
-  printf '%s' "$body_text" | limit_text 420
+}
+
+agent_label() {
+  case "$1" in
+    claude) printf 'Claude Code' ;;
+    codex) printf 'Codex CLI' ;;
+    gemini) printf 'Gemini CLI' ;;
+  esac
+}
+
+first_json_value() {
+  for key in "$@"; do
+    value=$(json_string_value "$key")
+    if [ -n "$value" ]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+}
+
+json_string_value() {
+  key=$1
+  [ -n "${payload:-}" ] || return 0
+  printf '%s' "$payload" |
+    tr '\n' ' ' |
+    sed -nE 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p' |
+    head -n 1 |
+    json_unescape
+}
+
+json_unescape() {
+  sed 's/\\"/"/g; s/\\\\/\\/g; s/\\n/ /g; s/\\r/ /g; s/\\t/ /g'
+}
+
+markdown_to_plain() {
+  sed -E '
+    s/!\[([^][]*)\]\([^)]*\)/\1/g
+    s/\[([^][]*)\]\([^)]*\)/\1/g
+    s/```[[:alnum:]_+-]*[[:space:]]*/ /g
+    s/```/ /g
+    s/`([^`]*)`/\1/g
+    s/~~([^~]*)~~/\1/g
+    s/(^|[[:space:]])#{1,6}[[:space:]]+/\1/g
+    s/(^|[[:space:]])>[[:space:]]+/\1/g
+    s/(^|[[:space:]])[-+*][[:space:]]+/\1/g
+    s/(^|[[:space:]])[0-9]+[.)][[:space:]]+/\1/g
+    s/\*\*([^*]*)\*\*/\1/g
+    s/\*([^*]*)\*/\1/g
+  '
+}
+
+squash_ws() {
+  tr '\r\n\t' '   ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
+}
+
+limit_text() {
+  awk -v max="$1" '{
+    if (length($0) > max) {
+      print substr($0, 1, max - 3) "..."
+    } else {
+      print
+    }
+  }'
+}
+
+lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
 }

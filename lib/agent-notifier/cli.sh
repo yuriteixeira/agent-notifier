@@ -1,3 +1,13 @@
+main() {
+  parse_args "$@"
+  read_payload
+  resolve_agent
+  resolve_event
+  load_tmux_context
+  build_notification
+  notify_all
+}
+
 parse_args() {
   agent=
   event=
@@ -94,14 +104,4 @@ resolve_event() {
 build_notification() {
   title=$(title_for)
   body=$(body_for)
-}
-
-main() {
-  parse_args "$@"
-  read_payload
-  resolve_agent
-  resolve_event
-  load_tmux_context
-  build_notification
-  notify_all
 }

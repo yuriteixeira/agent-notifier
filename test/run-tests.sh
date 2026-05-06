@@ -9,6 +9,37 @@ PASS_COUNT=0
 FAIL_COUNT=0
 TMP_ROOT=
 
+main() {
+  run_test 'macOS chooses osascript' test_macos_uses_osascript
+  run_test 'Linux chooses notify-send' test_linux_uses_notify_send
+  run_test 'missing OS backend exits successfully' test_missing_os_backend_exits_successfully
+  run_test 'tmux display is attempted when available' test_tmux_attempted_when_available
+  run_test 'tmux default body does not repeat title' test_tmux_default_body_does_not_repeat_title
+  run_test 'tmux body wraps into multiple menu rows' test_tmux_body_wraps_into_multiple_menu_rows
+  run_test 'tmux session is added to local notifications' test_tmux_session_added_to_local_notification
+  run_test 'tmux display is skipped when tmux is missing' test_tmux_skipped_when_command_missing
+  run_test 'ntfy is skipped without a topic' test_ntfy_skipped_without_topic
+  run_test 'ntfy uses dotfile fallback' test_ntfy_dotfile_fallback
+  run_test 'ntfy env config wins over dotfile' test_ntfy_env_wins_over_dotfile
+  run_test 'ntfy priorities match event type' test_ntfy_priorities
+  run_test 'Claude fixture produces expected notification' test_claude_fixture_title_body
+  run_test 'Codex fixture produces expected notification' test_codex_fixture_title_body
+  run_test 'Gemini fixture produces expected notification' test_gemini_fixture_title_body
+  run_test 'Codex legacy positional payload works' test_codex_legacy_positional_payload
+  run_test 'Markdown payloads become plain text' test_markdown_payload_becomes_plain_text
+  run_test 'invalid flags fail' test_invalid_flags_fail
+  run_test 'AGENT_NOTIFIER_LIB_DIR supports custom layouts' test_agent_notifier_lib_dir_override_allows_custom_layout
+  run_test 'copy install runs from a temporary prefix' test_install_copy_runs_from_temp_prefix
+  run_test 'symlink install links executable and module directory' test_install_symlink_links_executable_and_lib_dir
+  run_test 'symlink install replaces old module directories' test_install_symlink_replaces_old_module_directory
+  run_test 'symlink install refuses unexpected lib contents' test_install_symlink_refuses_unexpected_lib_contents
+  run_test 'uninstall removes installed bootstrap module' test_uninstall_removes_installed_bootstrap_module
+  run_test 'uninstall removes symlinked module directory' test_uninstall_removes_symlinked_lib_directory
+
+  printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"
+  [ "$FAIL_COUNT" -eq 0 ]
+}
+
 cleanup() {
   if [ -n "${TMP_ROOT:-}" ] && [ -d "$TMP_ROOT" ]; then
     rm -rf "$TMP_ROOT"
@@ -625,31 +656,4 @@ test_uninstall_removes_symlinked_lib_directory() {
   }
 }
 
-run_test 'macOS chooses osascript' test_macos_uses_osascript
-run_test 'Linux chooses notify-send' test_linux_uses_notify_send
-run_test 'missing OS backend exits successfully' test_missing_os_backend_exits_successfully
-run_test 'tmux display is attempted when available' test_tmux_attempted_when_available
-run_test 'tmux default body does not repeat title' test_tmux_default_body_does_not_repeat_title
-run_test 'tmux body wraps into multiple menu rows' test_tmux_body_wraps_into_multiple_menu_rows
-run_test 'tmux session is added to local notifications' test_tmux_session_added_to_local_notification
-run_test 'tmux display is skipped when tmux is missing' test_tmux_skipped_when_command_missing
-run_test 'ntfy is skipped without a topic' test_ntfy_skipped_without_topic
-run_test 'ntfy uses dotfile fallback' test_ntfy_dotfile_fallback
-run_test 'ntfy env config wins over dotfile' test_ntfy_env_wins_over_dotfile
-run_test 'ntfy priorities match event type' test_ntfy_priorities
-run_test 'Claude fixture produces expected notification' test_claude_fixture_title_body
-run_test 'Codex fixture produces expected notification' test_codex_fixture_title_body
-run_test 'Gemini fixture produces expected notification' test_gemini_fixture_title_body
-run_test 'Codex legacy positional payload works' test_codex_legacy_positional_payload
-run_test 'Markdown payloads become plain text' test_markdown_payload_becomes_plain_text
-run_test 'invalid flags fail' test_invalid_flags_fail
-run_test 'AGENT_NOTIFIER_LIB_DIR supports custom layouts' test_agent_notifier_lib_dir_override_allows_custom_layout
-run_test 'copy install runs from a temporary prefix' test_install_copy_runs_from_temp_prefix
-run_test 'symlink install links executable and module directory' test_install_symlink_links_executable_and_lib_dir
-run_test 'symlink install replaces old module directories' test_install_symlink_replaces_old_module_directory
-run_test 'symlink install refuses unexpected lib contents' test_install_symlink_refuses_unexpected_lib_contents
-run_test 'uninstall removes installed bootstrap module' test_uninstall_removes_installed_bootstrap_module
-run_test 'uninstall removes symlinked module directory' test_uninstall_removes_symlinked_lib_directory
-
-printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"
-[ "$FAIL_COUNT" -eq 0 ]
+main "$@"
