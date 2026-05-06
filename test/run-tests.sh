@@ -31,6 +31,7 @@ main() {
   run_test 'AGENT_NOTIFIER_LIB_DIR supports custom layouts' test_agent_notifier_lib_dir_override_allows_custom_layout
   run_test 'copy install runs from a temporary prefix' test_install_copy_runs_from_temp_prefix
   run_test 'symlink install links executable and module directory' test_install_symlink_links_executable_and_lib_dir
+  run_test 'symlink install runs when bin directory is a symlink' test_install_symlink_runs_from_symlinked_bin_dir
   run_test 'symlink install replaces old module directories' test_install_symlink_replaces_old_module_directory
   run_test 'symlink install refuses unexpected lib contents' test_install_symlink_refuses_unexpected_lib_contents
   run_test 'uninstall removes installed bootstrap module' test_uninstall_removes_installed_bootstrap_module
@@ -555,6 +556,34 @@ test_install_symlink_links_executable_and_lib_dir() {
   }
   [ "$(readlink "$installed_lib_dir")" = "$ROOT/lib/agent-notifier" ] || {
     printf 'installed module symlink points to %s\n' "$(readlink "$installed_lib_dir")" >&2
+    return 1
+  }
+
+  printf '{}' | run_agent_notifier_as "$installed_script" --agent codex --event finished || return 1
+  assert_log_contains 'notify-send' || return 1
+  assert_log_contains 'Codex CLI finished'
+}
+
+test_install_symlink_runs_from_symlinked_bin_dir() {
+  new_case || return 1
+  AGENT_NOTIFIER_TEST_UNAME=Linux
+  mock_uname
+  mock_record notify-send
+  install_prefix="$TMP_ROOT/prefix"
+  actual_bin_dir="$TMP_ROOT/dotfiles/.local/bin"
+  installed_script="$install_prefix/bin/agent-notifier"
+  installed_lib_dir="$install_prefix/lib/agent-notifier"
+  mkdir -p "$install_prefix" "$actual_bin_dir" || return 1
+  ln -s "$actual_bin_dir" "$install_prefix/bin"
+
+  PATH="$ORIGINAL_PATH" "$ROOT/install.sh" --symlink --prefix "$install_prefix" >"$TMP_ROOT/install.out" || return 1
+
+  [ -L "$installed_script" ] || {
+    printf 'installed executable is not a symlink\n' >&2
+    return 1
+  }
+  [ -L "$installed_lib_dir" ] || {
+    printf 'installed module directory is not a symlink\n' >&2
     return 1
   }
 

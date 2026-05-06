@@ -4,7 +4,8 @@ agent_notifier_script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &&
   printf 'agent-notifier: could not resolve script directory\n' >&2
   exit 70
 }
-agent_notifier_lib_dir=${AGENT_NOTIFIER_LIB_DIR:-"$agent_notifier_script_dir/../lib/agent-notifier"}
+agent_notifier_install_dir=$(dirname -- "$agent_notifier_script_dir")
+agent_notifier_lib_dir=${AGENT_NOTIFIER_LIB_DIR:-"$agent_notifier_install_dir/lib/agent-notifier"}
 
 agent_notifier_bootstrap_path=$agent_notifier_lib_dir/bootstrap.sh
 if [ ! -f "$agent_notifier_bootstrap_path" ]; then
