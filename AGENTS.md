@@ -35,7 +35,7 @@ Add or update tests in `test/run-tests.sh` for every behavior change. Use focuse
 
 ## Commit & Pull Request Guidelines
 
-The history currently uses short lowercase summaries, such as `initial commit`. Keep commit messages concise and imperative when possible, for example `add ntfy token handling`. Pull requests should describe user-visible behavior, list test results, and note any changes to hook snippets, installation paths, or notification backend behavior.
+Use Conventional Commits for commit titles, such as `feat: add ntfy token handling`, `fix: preserve symlinked module installs`, or `docs: update hook setup guidance`. Keep the commit description focused on the important details of the change, including user-visible behavior, test coverage, and any changes to hook snippets, installation paths, or notification backend behavior. Pull requests should describe user-visible behavior, list test results, and note any changes to hook snippets, installation paths, or notification backend behavior.
 
 ## Security & Configuration Tips
 
