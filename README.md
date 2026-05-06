@@ -45,6 +45,9 @@ To install as a symlink instead:
 ./install.sh --symlink
 ```
 
+This links both `~/.local/bin/agent-notifier` and the sibling
+`~/.local/lib/agent-notifier/` support module directory back to the clone.
+
 To install somewhere else:
 
 ```sh

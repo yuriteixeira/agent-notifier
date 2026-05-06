@@ -1,60 +1,10 @@
 #!/usr/bin/env bash
 
-agent_notifier_dirname() {
-  case "$1" in
-    */*) printf '%s\n' "${1%/*}" ;;
-    *) printf '.\n' ;;
-  esac
-}
-
-agent_notifier_abs_dir() {
-  agent_notifier_path_dir=$(agent_notifier_dirname "$1")
-  CDPATH= cd -- "$agent_notifier_path_dir" && pwd
-}
-
-agent_notifier_symlink_lib_dir() {
-  [ -L "$1" ] || return 1
-  command -v readlink >/dev/null 2>&1 || return 1
-
-  agent_notifier_link_target=$(readlink "$1" 2>/dev/null || true)
-  [ -n "$agent_notifier_link_target" ] || return 1
-
-  case "$agent_notifier_link_target" in
-    /*) agent_notifier_target_path=$agent_notifier_link_target ;;
-    *) agent_notifier_target_path=$2/$agent_notifier_link_target ;;
-  esac
-
-  agent_notifier_target_dir=$(agent_notifier_abs_dir "$agent_notifier_target_path" 2>/dev/null || true)
-  [ -n "$agent_notifier_target_dir" ] || return 1
-
-  printf '%s\n' "$agent_notifier_target_dir/../lib/agent-notifier"
-}
-
-agent_notifier_lib_dir_has_bootstrap() {
-  [ -f "$1/bootstrap.sh" ]
-}
-
-agent_notifier_resolve_lib_dir() {
-  agent_notifier_default_lib_dir=$2/../lib/agent-notifier
-  agent_notifier_linked_lib_dir=$(agent_notifier_symlink_lib_dir "$1" "$2" || true)
-
-  if [ -n "${AGENT_NOTIFIER_LIB_DIR:-}" ]; then
-    printf '%s\n' "$AGENT_NOTIFIER_LIB_DIR"
-  elif agent_notifier_lib_dir_has_bootstrap "$agent_notifier_default_lib_dir"; then
-    printf '%s\n' "$agent_notifier_default_lib_dir"
-  elif [ -n "$agent_notifier_linked_lib_dir" ] && agent_notifier_lib_dir_has_bootstrap "$agent_notifier_linked_lib_dir"; then
-    printf '%s\n' "$agent_notifier_linked_lib_dir"
-  else
-    printf '%s\n' "$agent_notifier_default_lib_dir"
-  fi
-}
-
-agent_notifier_script_path=${BASH_SOURCE[0]}
-agent_notifier_script_dir=$(agent_notifier_abs_dir "$agent_notifier_script_path") || {
+agent_notifier_script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd) || {
   printf 'agent-notifier: could not resolve script directory\n' >&2
   exit 70
 }
-agent_notifier_lib_dir=$(agent_notifier_resolve_lib_dir "$agent_notifier_script_path" "$agent_notifier_script_dir")
+agent_notifier_lib_dir=${AGENT_NOTIFIER_LIB_DIR:-"$agent_notifier_script_dir/../lib/agent-notifier"}
 
 agent_notifier_bootstrap_path=$agent_notifier_lib_dir/bootstrap.sh
 if [ ! -f "$agent_notifier_bootstrap_path" ]; then

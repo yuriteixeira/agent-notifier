@@ -66,7 +66,7 @@ new_case() {
   done
 
   CASE_PATH="$MOCKBIN:$TOOLBIN"
-  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFIER_NTFY_ENV TMUX TMUX_PANE AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME AGENT_NOTIFIER_TEST_TMUX_SESSION_ID AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID AGENT_NOTIFIER_TEST_TMUX_PANE_ID
+  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFIER_NTFY_ENV AGENT_NOTIFIER_LIB_DIR TMUX TMUX_PANE AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME AGENT_NOTIFIER_TEST_TMUX_SESSION_ID AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME AGENT_NOTIFIER_TEST_TMUX_WINDOW_ID AGENT_NOTIFIER_TEST_TMUX_PANE_ID
   AGENT_NOTIFIER_TEST_UNAME=Linux
 }
 
@@ -131,6 +131,7 @@ run_agent_notifier_as() {
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
     AGENT_NOTIFIER_NTFY_ENV="${AGENT_NOTIFIER_NTFY_ENV:-}" \
+    AGENT_NOTIFIER_LIB_DIR="${AGENT_NOTIFIER_LIB_DIR:-}" \
     AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFIER_TEST_TMUX_SESSION_NAME:-}" \
     AGENT_NOTIFIER_TEST_TMUX_SESSION_ID="${AGENT_NOTIFIER_TEST_TMUX_SESSION_ID:-}" \
     AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFIER_TEST_TMUX_CLIENT_NAME:-}" \
@@ -416,9 +417,10 @@ test_invalid_flags_fail() {
   fi
 }
 
-test_symlinked_script_uses_source_modules() {
+test_agent_notifier_lib_dir_override_allows_custom_layout() {
   new_case || return 1
   AGENT_NOTIFIER_TEST_UNAME=Linux
+  AGENT_NOTIFIER_LIB_DIR="$ROOT/lib/agent-notifier"
   mock_uname
   mock_record notify-send
   ln -s "$SCRIPT" "$TMP_ROOT/agent-notifier"
@@ -428,18 +430,117 @@ test_symlinked_script_uses_source_modules() {
   assert_log_contains 'Codex CLI finished'
 }
 
-test_symlinked_script_ignores_stale_installed_modules() {
+test_install_copy_runs_from_temp_prefix() {
   new_case || return 1
   AGENT_NOTIFIER_TEST_UNAME=Linux
   mock_uname
   mock_record notify-send
-  mkdir -p "$TMP_ROOT/prefix/bin" "$TMP_ROOT/prefix/lib/agent-notifier" || return 1
-  ln -s "$SCRIPT" "$TMP_ROOT/prefix/bin/agent-notifier"
-  : >"$TMP_ROOT/prefix/lib/agent-notifier/core.sh"
+  install_prefix="$TMP_ROOT/prefix"
 
-  printf '{}' | run_agent_notifier_as "$TMP_ROOT/prefix/bin/agent-notifier" --agent codex --event finished || return 1
+  PATH="$ORIGINAL_PATH" "$ROOT/install.sh" --prefix "$install_prefix" >"$TMP_ROOT/install.out" || return 1
+
+  [ -f "$install_prefix/bin/agent-notifier" ] || {
+    printf 'installed executable is missing\n' >&2
+    return 1
+  }
+  [ ! -L "$install_prefix/bin/agent-notifier" ] || {
+    printf 'copy install unexpectedly created an executable symlink\n' >&2
+    return 1
+  }
+  [ -d "$install_prefix/lib/agent-notifier" ] || {
+    printf 'installed module directory is missing\n' >&2
+    return 1
+  }
+
+  printf '{}' | run_agent_notifier_as "$install_prefix/bin/agent-notifier" --agent codex --event finished || return 1
   assert_log_contains 'notify-send' || return 1
   assert_log_contains 'Codex CLI finished'
+}
+
+test_install_symlink_links_executable_and_lib_dir() {
+  new_case || return 1
+  AGENT_NOTIFIER_TEST_UNAME=Linux
+  mock_uname
+  mock_record notify-send
+  install_prefix="$TMP_ROOT/prefix"
+  installed_script="$install_prefix/bin/agent-notifier"
+  installed_lib_dir="$install_prefix/lib/agent-notifier"
+
+  PATH="$ORIGINAL_PATH" "$ROOT/install.sh" --symlink --prefix "$install_prefix" >"$TMP_ROOT/install.out" || return 1
+
+  [ -L "$installed_script" ] || {
+    printf 'installed executable is not a symlink\n' >&2
+    return 1
+  }
+  [ "$(readlink "$installed_script")" = "$SCRIPT" ] || {
+    printf 'installed executable symlink points to %s\n' "$(readlink "$installed_script")" >&2
+    return 1
+  }
+  [ -L "$installed_lib_dir" ] || {
+    printf 'installed module directory is not a symlink\n' >&2
+    return 1
+  }
+  [ "$(readlink "$installed_lib_dir")" = "$ROOT/lib/agent-notifier" ] || {
+    printf 'installed module symlink points to %s\n' "$(readlink "$installed_lib_dir")" >&2
+    return 1
+  }
+
+  printf '{}' | run_agent_notifier_as "$installed_script" --agent codex --event finished || return 1
+  assert_log_contains 'notify-send' || return 1
+  assert_log_contains 'Codex CLI finished'
+}
+
+test_install_symlink_replaces_old_module_directory() {
+  new_case || return 1
+  AGENT_NOTIFIER_TEST_UNAME=Linux
+  mock_uname
+  mock_record notify-send
+  install_prefix="$TMP_ROOT/prefix"
+  installed_script="$install_prefix/bin/agent-notifier"
+  installed_lib_dir="$install_prefix/lib/agent-notifier"
+  mkdir -p "$install_prefix/bin" "$installed_lib_dir" || return 1
+  ln -s "$SCRIPT" "$installed_script"
+
+  for module in "$ROOT/lib/agent-notifier"/*.sh; do
+    ln -s "$module" "$installed_lib_dir/$(basename -- "$module")"
+  done
+
+  PATH="$ORIGINAL_PATH" "$ROOT/install.sh" --symlink --prefix "$install_prefix" >"$TMP_ROOT/install.out" || return 1
+
+  [ -L "$installed_lib_dir" ] || {
+    printf 'old module directory was not replaced with a symlink\n' >&2
+    return 1
+  }
+  [ "$(readlink "$installed_lib_dir")" = "$ROOT/lib/agent-notifier" ] || {
+    printf 'installed module symlink points to %s\n' "$(readlink "$installed_lib_dir")" >&2
+    return 1
+  }
+
+  printf '{}' | run_agent_notifier_as "$installed_script" --agent codex --event finished || return 1
+  assert_log_contains 'notify-send' || return 1
+  assert_log_contains 'Codex CLI finished'
+}
+
+test_install_symlink_refuses_unexpected_lib_contents() {
+  new_case || return 1
+  install_prefix="$TMP_ROOT/prefix"
+  installed_lib_dir="$install_prefix/lib/agent-notifier"
+  mkdir -p "$installed_lib_dir" || return 1
+  : >"$installed_lib_dir/custom.sh"
+
+  if PATH="$ORIGINAL_PATH" "$ROOT/install.sh" --symlink --prefix "$install_prefix" >"$TMP_ROOT/install.out" 2>"$TMP_ROOT/install.err"; then
+    printf 'symlink install unexpectedly replaced a non-empty custom lib directory\n' >&2
+    return 1
+  fi
+
+  [ -f "$installed_lib_dir/custom.sh" ] || {
+    printf 'custom lib file was removed\n' >&2
+    return 1
+  }
+  grep -F 'contains files not installed by agent-notifier' "$TMP_ROOT/install.err" >/dev/null 2>&1 || {
+    printf 'expected clear error for custom lib directory\n' >&2
+    return 1
+  }
 }
 
 test_uninstall_removes_installed_bootstrap_module() {
@@ -465,6 +566,23 @@ test_uninstall_removes_installed_bootstrap_module() {
   }
 }
 
+test_uninstall_removes_symlinked_lib_directory() {
+  new_case || return 1
+  install_prefix="$TMP_ROOT/prefix"
+  install_bin_dir="$install_prefix/bin"
+  install_lib_parent="$install_prefix/lib"
+  install_lib_dir="$install_lib_parent/agent-notifier"
+  mkdir -p "$install_bin_dir" "$install_lib_parent" || return 1
+  ln -s "$SCRIPT" "$install_bin_dir/agent-notifier"
+  ln -s "$ROOT/lib/agent-notifier" "$install_lib_dir"
+
+  PATH="$ORIGINAL_PATH" "$ROOT/uninstall.sh" --prefix "$install_prefix" >"$TMP_ROOT/uninstall.out" || return 1
+  [ ! -e "$install_lib_dir" ] && [ ! -L "$install_lib_dir" ] || {
+    printf 'symlinked module directory was not removed\n' >&2
+    return 1
+  }
+}
+
 run_test 'macOS chooses osascript' test_macos_uses_osascript
 run_test 'Linux chooses notify-send' test_linux_uses_notify_send
 run_test 'missing OS backend exits successfully' test_missing_os_backend_exits_successfully
@@ -481,9 +599,13 @@ run_test 'Gemini fixture produces expected notification' test_gemini_fixture_tit
 run_test 'Codex legacy positional payload works' test_codex_legacy_positional_payload
 run_test 'Markdown payloads become plain text' test_markdown_payload_becomes_plain_text
 run_test 'invalid flags fail' test_invalid_flags_fail
-run_test 'symlinked script uses source modules' test_symlinked_script_uses_source_modules
-run_test 'symlinked script ignores stale installed modules' test_symlinked_script_ignores_stale_installed_modules
+run_test 'AGENT_NOTIFIER_LIB_DIR supports custom layouts' test_agent_notifier_lib_dir_override_allows_custom_layout
+run_test 'copy install runs from a temporary prefix' test_install_copy_runs_from_temp_prefix
+run_test 'symlink install links executable and module directory' test_install_symlink_links_executable_and_lib_dir
+run_test 'symlink install replaces old module directories' test_install_symlink_replaces_old_module_directory
+run_test 'symlink install refuses unexpected lib contents' test_install_symlink_refuses_unexpected_lib_contents
 run_test 'uninstall removes installed bootstrap module' test_uninstall_removes_installed_bootstrap_module
+run_test 'uninstall removes symlinked module directory' test_uninstall_removes_symlinked_lib_directory
 
 printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [ "$FAIL_COUNT" -eq 0 ]

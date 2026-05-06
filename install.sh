@@ -52,6 +52,7 @@ if [ -z "$bin_dir" ]; then
 fi
 
 lib_dir="$(dirname -- "$bin_dir")/lib/agent-notifier"
+lib_parent_dir=$(dirname -- "$lib_dir")
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 src="$script_dir/bin/agent-notifier"
@@ -68,29 +69,65 @@ if [ ! -d "$src_lib_dir" ]; then
   exit 1
 fi
 
-mkdir -p "$bin_dir" "$lib_dir"
+mkdir -p "$bin_dir" "$lib_parent_dir"
 
-if [ -e "$dest" ] || [ -L "$dest" ]; then
-  rm "$dest"
-fi
+remove_known_modules() {
+  [ -d "$lib_dir" ] || return 0
 
-for module in "$src_lib_dir"/*.sh; do
-  module_dest="$lib_dir/$(basename -- "$module")"
-  if [ -e "$module_dest" ] || [ -L "$module_dest" ]; then
-    rm "$module_dest"
+  for module in "$src_lib_dir"/*.sh; do
+    module_dest="$lib_dir/$(basename -- "$module")"
+    if [ -e "$module_dest" ] || [ -L "$module_dest" ]; then
+      rm "$module_dest"
+    fi
+  done
+}
+
+remove_dest() {
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    rm "$dest"
   fi
-done
+}
+
+prepare_copy_lib_dir() {
+  if [ -L "$lib_dir" ]; then
+    rm "$lib_dir"
+  elif [ -e "$lib_dir" ] && [ ! -d "$lib_dir" ]; then
+    echo "install.sh: $lib_dir exists and is not a directory" >&2
+    exit 1
+  fi
+
+  mkdir -p "$lib_dir"
+  remove_known_modules
+}
+
+prepare_symlink_lib_dir() {
+  if [ -L "$lib_dir" ]; then
+    rm "$lib_dir"
+  elif [ -d "$lib_dir" ]; then
+    remove_known_modules
+    if ! rmdir "$lib_dir" 2>/dev/null; then
+      echo "install.sh: $lib_dir contains files not installed by agent-notifier; remove them or use --copy" >&2
+      exit 1
+    fi
+  elif [ -e "$lib_dir" ]; then
+    echo "install.sh: $lib_dir exists and is not a directory or symlink" >&2
+    exit 1
+  fi
+
+  ln -s "$src_lib_dir" "$lib_dir"
+}
 
 case "$mode" in
   copy)
+    prepare_copy_lib_dir
+    remove_dest
     cp "$src" "$dest"
     cp "$src_lib_dir"/*.sh "$lib_dir"/
     ;;
   symlink)
-    ln -sfn "$src" "$dest"
-    for module in "$src_lib_dir"/*.sh; do
-      ln -sfn "$module" "$lib_dir/$(basename -- "$module")"
-    done
+    prepare_symlink_lib_dir
+    remove_dest
+    ln -s "$src" "$dest"
     ;;
 esac
 

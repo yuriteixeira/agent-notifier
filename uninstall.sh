@@ -53,21 +53,26 @@ else
   echo "No installed script found at $dest"
 fi
 
-removed_modules=0
-for module in bootstrap cli core notify notify_local notify_tmux notify_ntfy tmux; do
-  module_path="$lib_dir/$module.sh"
-  if [ -e "$module_path" ] || [ -L "$module_path" ]; then
-    rm "$module_path"
-    removed_modules=1
-  fi
-done
-
-if rmdir "$lib_dir" 2>/dev/null; then
+if [ -L "$lib_dir" ]; then
+  rm "$lib_dir"
   echo "Removed support module directory $lib_dir"
-elif [ "$removed_modules" -eq 1 ]; then
-  echo "Removed support modules from $lib_dir"
 else
-  echo "No support modules found at $lib_dir"
+  removed_modules=0
+  for module in bootstrap cli core notify notify_local notify_tmux notify_ntfy tmux; do
+    module_path="$lib_dir/$module.sh"
+    if [ -e "$module_path" ] || [ -L "$module_path" ]; then
+      rm "$module_path"
+      removed_modules=1
+    fi
+  done
+
+  if rmdir "$lib_dir" 2>/dev/null; then
+    echo "Removed support module directory $lib_dir"
+  elif [ "$removed_modules" -eq 1 ]; then
+    echo "Removed support modules from $lib_dir"
+  else
+    echo "No support modules found at $lib_dir"
+  fi
 fi
 
 cat <<'EOF'
