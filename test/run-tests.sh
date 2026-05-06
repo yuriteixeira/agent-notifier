@@ -66,7 +66,7 @@ new_case() {
   done
 
   CASE_PATH="$MOCKBIN:$TOOLBIN"
-  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFY_NTFY_ENV TMUX
+  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFY_NTFY_ENV TMUX AGENT_NOTIFY_TEST_TMUX_SESSION_NAME AGENT_NOTIFY_TEST_TMUX_SESSION_ID
   AGENT_NOTIFY_TEST_UNAME=Linux
 }
 
@@ -94,6 +94,23 @@ mock_record() {
 } >> "$AGENT_NOTIFY_TEST_LOG"'
 }
 
+mock_tmux_session() {
+  mock_cmd tmux '{
+  printf "%s" "$(basename "$0")"
+  for arg in "$@"; do
+    printf "\t%s" "$arg"
+  done
+  printf "\n"
+} >> "$AGENT_NOTIFY_TEST_LOG"
+
+if [ "${1:-}" = "display-message" ] && [ "${2:-}" = "-p" ]; then
+  case "${3:-}" in
+    "#S") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_SESSION_NAME" ;;
+    "#{session_id}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_SESSION_ID" ;;
+  esac
+fi'
+}
+
 run_payload() {
   local input=$1
   shift
@@ -107,6 +124,8 @@ run_payload() {
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
     AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
+    AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
+    AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
     "$SCRIPT" "$@"
 }
 
@@ -122,6 +141,8 @@ run_fixture() {
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
     AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
+    AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
+    AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
     "$SCRIPT" "$@" <"$ROOT/test/fixtures/$fixture"
 }
 
@@ -135,6 +156,8 @@ run_no_stdin() {
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
     AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
+    AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
+    AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
     "$SCRIPT" "$@"
 }
 
@@ -200,13 +223,36 @@ test_tmux_attempted_when_available() {
   new_case || return 1
   AGENT_NOTIFY_TEST_UNAME=Linux
   TMUX=/tmp/tmux-session
+  AGENT_NOTIFY_TEST_TMUX_SESSION_NAME=agent-work
+  AGENT_NOTIFY_TEST_TMUX_SESSION_ID='$9'
   mock_uname
-  mock_record tmux
+  mock_tmux_session
 
   run_payload '{"message":"waiting"}' --agent claude --event interaction || return 1
   assert_log_contains 'tmux'
-  assert_log_contains 'display-message'
-  assert_log_contains 'Claude Code needs input: waiting'
+  assert_log_contains 'display-message	-p	#S' || return 1
+  assert_log_contains 'display-message	-p	#{session_id}' || return 1
+  assert_log_contains 'display-menu' || return 1
+  assert_log_contains '-x	C' || return 1
+  assert_log_contains '-y	C' || return 1
+  assert_log_contains 'bg=yellow,fg=black,bold' || return 1
+  assert_log_contains 'Claude Code needs input: [agent-work] waiting' || return 1
+  assert_log_contains "switch-client -t '\$9'"
+}
+
+test_tmux_session_added_to_local_notification() {
+  new_case || return 1
+  AGENT_NOTIFY_TEST_UNAME=Linux
+  TMUX=/tmp/tmux-session
+  AGENT_NOTIFY_TEST_TMUX_SESSION_NAME=agent-work
+  AGENT_NOTIFY_TEST_TMUX_SESSION_ID='$9'
+  mock_uname
+  mock_tmux_session
+  mock_record notify-send
+
+  run_payload '{"message":"done"}' --agent codex --event finished || return 1
+  assert_log_contains 'notify-send' || return 1
+  assert_log_contains '[agent-work] done'
 }
 
 test_tmux_skipped_when_command_missing() {
@@ -348,6 +394,7 @@ run_test 'macOS chooses osascript' test_macos_uses_osascript
 run_test 'Linux chooses notify-send' test_linux_uses_notify_send
 run_test 'missing OS backend exits successfully' test_missing_os_backend_exits_successfully
 run_test 'tmux display is attempted when available' test_tmux_attempted_when_available
+run_test 'tmux session is added to local notifications' test_tmux_session_added_to_local_notification
 run_test 'tmux display is skipped when tmux is missing' test_tmux_skipped_when_command_missing
 run_test 'ntfy is skipped without a topic' test_ntfy_skipped_without_topic
 run_test 'ntfy uses dotfile fallback' test_ntfy_dotfile_fallback

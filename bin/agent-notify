@@ -37,6 +37,20 @@ lower() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+tmux_current_session_name() {
+  [ -n "${TMUX:-}" ] && have tmux || return 0
+  tmux display-message -p '#S' 2>/dev/null | head -n 1 | squash_ws
+}
+
+tmux_current_session_id() {
+  [ -n "${TMUX:-}" ] && have tmux || return 0
+  tmux display-message -p '#{session_id}' 2>/dev/null | head -n 1
+}
+
+tmux_escape_format() {
+  sed 's/#/##/g'
+}
+
 markdown_to_plain() {
   sed -E '
     s/!\[([^][]*)\]\([^)]*\)/\1/g
@@ -127,18 +141,24 @@ body_for() {
   cwd=$(first_json_value cwd current_working_directory current-working-directory workspace_dir workspace-dir)
 
   if [ -n "$message" ] && [ -n "$cwd" ]; then
-    printf '%s (%s)' "$message" "$cwd"
+    body_text=$(printf '%s (%s)' "$message" "$cwd")
   elif [ -n "$message" ]; then
-    printf '%s' "$message"
+    body_text=$(printf '%s' "$message")
   elif [ -n "$cwd" ]; then
-    printf 'Working directory: %s' "$cwd"
+    body_text=$(printf 'Working directory: %s' "$cwd")
   else
     label=$(agent_label "$agent")
     case "$event" in
-      finished) printf '%s finished a turn.' "$label" ;;
-      interaction) printf '%s is waiting for user interaction.' "$label" ;;
+      finished) body_text=$(printf '%s finished a turn.' "$label") ;;
+      interaction) body_text=$(printf '%s is waiting for user interaction.' "$label") ;;
     esac
-  fi | markdown_to_plain | squash_ws | limit_text 420
+  fi
+
+  body_text=$(printf '%s' "$body_text" | markdown_to_plain | squash_ws)
+  if [ -n "${tmux_session:-}" ]; then
+    body_text=$(printf '[%s] %s' "$tmux_session" "$body_text")
+  fi
+  printf '%s' "$body_text" | limit_text 420
 }
 
 osascript_quote() {
@@ -164,10 +184,26 @@ notify_local() {
 }
 
 notify_tmux() {
-  if [ -n "${TMUX:-}" ] && have tmux; then
-    tmux display-message "$title: $body" >/dev/null 2>&1 || true
-    { printf '\a' >/dev/tty; } 2>/dev/null || true
+  [ -n "${TMUX:-}" ] && have tmux || return 0
+
+  tmux_message=$(printf '%s: %s' "$title" "$body")
+  tmux_menu_title=$(printf '%s' "$title" | tmux_escape_format)
+  tmux_menu_item=$(printf '%s' "$tmux_message" | limit_text 160 | tmux_escape_format)
+  if [ -n "${tmux_session_id:-}" ]; then
+    tmux display-menu \
+      -x C \
+      -y C \
+      -s 'bg=yellow,fg=black,bold' \
+      -S 'bg=yellow,fg=black,bold' \
+      -H 'bg=black,fg=yellow,bold' \
+      -T "$tmux_menu_title" \
+      "$tmux_menu_item" j "switch-client -t '$tmux_session_id'" >/dev/null 2>&1 ||
+      tmux display-message -d 8000 "#[bg=yellow,fg=black,bold] $tmux_menu_item #[default]" >/dev/null 2>&1 ||
+      true
+  else
+    tmux display-message -d 8000 "#[bg=yellow,fg=black,bold] $tmux_menu_item #[default]" >/dev/null 2>&1 || true
   fi
+  { printf '\a' >/dev/tty; } 2>/dev/null || true
 }
 
 strip_config_value() {
@@ -317,6 +353,8 @@ case "$event" in
   *) fail_usage 'invalid --event; expected finished or interaction' ;;
 esac
 
+tmux_session=$(tmux_current_session_name)
+tmux_session_id=$(tmux_current_session_id)
 title=$(title_for)
 body=$(body_for)
 

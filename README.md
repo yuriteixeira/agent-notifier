@@ -11,7 +11,8 @@ running inside tmux, and optional remote ntfy publishing.
 - Single Bash script: `bin/agent-notify`
 - macOS local notifications through `osascript`
 - Linux local notifications through `notify-send`
-- tmux `display-message` plus terminal bell when running inside tmux
+- tmux session names in notification text when running inside tmux
+- Centered tmux menu notifications that can switch back to the agent session
 - Optional ntfy publish via `curl`
 - Reads hook JSON from stdin
 - Accepts Codex legacy JSON as the first positional argument
@@ -288,7 +289,8 @@ fail.
 - No Linux notification: install a desktop notification implementation that
   provides `notify-send`, such as `libnotify`.
 - No tmux message: tmux notifications only run when `$TMUX` is set and the
-  `tmux` command is available.
+  `tmux` command is available. Centered selectable notifications use
+  `display-menu`; older tmux versions fall back to a styled `display-message`.
 - No ntfy message: confirm `curl` exists and `NTFY_TOPIC` is set in the hook
   environment or in `~/.config/agent-notify/ntfy.env`.
 - Hook config does not load: validate each tool separately. Claude users can
