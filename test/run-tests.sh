@@ -321,6 +321,19 @@ test_codex_legacy_positional_payload() {
   assert_log_contains 'Legacy complete'
 }
 
+test_markdown_payload_becomes_plain_text() {
+  new_case || return 1
+  AGENT_NOTIFY_TEST_UNAME=Linux
+  mock_uname
+  mock_record notify-send
+
+  run_payload '{"title":"**Build** `done`","message":"### Summary\n- Updated `bin/agent-notify`\n- See [README](https://example.test/readme)","cwd":"/tmp/project"}' --agent codex --event finished || return 1
+  assert_log_contains 'Build done' || return 1
+  assert_log_contains 'Summary Updated bin/agent-notify See README (/tmp/project)' || return 1
+  assert_log_not_contains '**Build**' || return 1
+  assert_log_not_contains '[README](https://example.test/readme)'
+}
+
 test_invalid_flags_fail() {
   new_case || return 1
   mock_uname
@@ -344,6 +357,7 @@ run_test 'Claude fixture produces expected notification' test_claude_fixture_tit
 run_test 'Codex fixture produces expected notification' test_codex_fixture_title_body
 run_test 'Gemini fixture produces expected notification' test_gemini_fixture_title_body
 run_test 'Codex legacy positional payload works' test_codex_legacy_positional_payload
+run_test 'Markdown payloads become plain text' test_markdown_payload_becomes_plain_text
 run_test 'invalid flags fail' test_invalid_flags_fail
 
 printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"

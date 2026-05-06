@@ -37,6 +37,23 @@ lower() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+markdown_to_plain() {
+  sed -E '
+    s/!\[([^][]*)\]\([^)]*\)/\1/g
+    s/\[([^][]*)\]\([^)]*\)/\1/g
+    s/```[[:alnum:]_+-]*[[:space:]]*/ /g
+    s/```/ /g
+    s/`([^`]*)`/\1/g
+    s/~~([^~]*)~~/\1/g
+    s/(^|[[:space:]])#{1,6}[[:space:]]+/\1/g
+    s/(^|[[:space:]])>[[:space:]]+/\1/g
+    s/(^|[[:space:]])[-+*][[:space:]]+/\1/g
+    s/(^|[[:space:]])[0-9]+[.)][[:space:]]+/\1/g
+    s/\*\*([^*]*)\*\*/\1/g
+    s/\*([^*]*)\*/\1/g
+  '
+}
+
 json_unescape() {
   sed 's/\\"/"/g; s/\\\\/\\/g; s/\\n/ /g; s/\\r/ /g; s/\\t/ /g'
 }
@@ -94,7 +111,7 @@ normalize_agent() {
 title_for() {
   payload_title=$(first_json_value title)
   if [ -n "$payload_title" ]; then
-    printf '%s' "$payload_title" | squash_ws | limit_text 96
+    printf '%s' "$payload_title" | markdown_to_plain | squash_ws | limit_text 96
     return 0
   fi
 
@@ -121,7 +138,7 @@ body_for() {
       finished) printf '%s finished a turn.' "$label" ;;
       interaction) printf '%s is waiting for user interaction.' "$label" ;;
     esac
-  fi | squash_ws | limit_text 420
+  fi | markdown_to_plain | squash_ws | limit_text 420
 }
 
 osascript_quote() {

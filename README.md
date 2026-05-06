@@ -15,6 +15,7 @@ running inside tmux, and optional remote ntfy publishing.
 - Optional ntfy publish via `curl`
 - Reads hook JSON from stdin
 - Accepts Codex legacy JSON as the first positional argument
+- Converts common Markdown formatting in agent text to plain notifications
 - Exits `0` when notification backends fail so hooks do not block the agent
 
 Invalid CLI flags or invalid `--agent` / `--event` values exit non-zero.
