@@ -66,7 +66,7 @@ new_case() {
   done
 
   CASE_PATH="$MOCKBIN:$TOOLBIN"
-  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFY_NTFY_ENV TMUX AGENT_NOTIFY_TEST_TMUX_SESSION_NAME AGENT_NOTIFY_TEST_TMUX_SESSION_ID
+  unset NTFY_TOPIC NTFY_SERVER NTFY_TOKEN AGENT_NOTIFY_NTFY_ENV TMUX TMUX_PANE AGENT_NOTIFY_TEST_TMUX_SESSION_NAME AGENT_NOTIFY_TEST_TMUX_SESSION_ID AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME AGENT_NOTIFY_TEST_TMUX_WINDOW_ID AGENT_NOTIFY_TEST_TMUX_PANE_ID
   AGENT_NOTIFY_TEST_UNAME=Linux
 }
 
@@ -104,9 +104,16 @@ mock_tmux_session() {
 } >> "$AGENT_NOTIFY_TEST_LOG"
 
 if [ "${1:-}" = "display-message" ] && [ "${2:-}" = "-p" ]; then
-  case "${3:-}" in
+  format=${3:-}
+  if [ "$format" = "-t" ]; then
+    format=${5:-}
+  fi
+  case "$format" in
     "#S") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_SESSION_NAME" ;;
     "#{session_id}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_SESSION_ID" ;;
+    "#{client_name}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME" ;;
+    "#{window_id}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_WINDOW_ID" ;;
+    "#{pane_id}") printf "%s\n" "$AGENT_NOTIFY_TEST_TMUX_PANE_ID" ;;
   esac
 fi'
 }
@@ -120,12 +127,16 @@ run_payload() {
     AGENT_NOTIFY_TEST_LOG="$LOG" \
     AGENT_NOTIFY_TEST_UNAME="${AGENT_NOTIFY_TEST_UNAME:-Linux}" \
     TMUX="${TMUX:-}" \
+    TMUX_PANE="${TMUX_PANE:-}" \
     NTFY_TOPIC="${NTFY_TOPIC:-}" \
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
     AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
     AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
     AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
+    AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME:-}" \
+    AGENT_NOTIFY_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFY_TEST_TMUX_WINDOW_ID:-}" \
+    AGENT_NOTIFY_TEST_TMUX_PANE_ID="${AGENT_NOTIFY_TEST_TMUX_PANE_ID:-}" \
     "$SCRIPT" "$@"
 }
 
@@ -137,12 +148,16 @@ run_fixture() {
     AGENT_NOTIFY_TEST_LOG="$LOG" \
     AGENT_NOTIFY_TEST_UNAME="${AGENT_NOTIFY_TEST_UNAME:-Linux}" \
     TMUX="${TMUX:-}" \
+    TMUX_PANE="${TMUX_PANE:-}" \
     NTFY_TOPIC="${NTFY_TOPIC:-}" \
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
     AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
     AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
     AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
+    AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME:-}" \
+    AGENT_NOTIFY_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFY_TEST_TMUX_WINDOW_ID:-}" \
+    AGENT_NOTIFY_TEST_TMUX_PANE_ID="${AGENT_NOTIFY_TEST_TMUX_PANE_ID:-}" \
     "$SCRIPT" "$@" <"$ROOT/test/fixtures/$fixture"
 }
 
@@ -152,12 +167,16 @@ run_no_stdin() {
     AGENT_NOTIFY_TEST_LOG="$LOG" \
     AGENT_NOTIFY_TEST_UNAME="${AGENT_NOTIFY_TEST_UNAME:-Linux}" \
     TMUX="${TMUX:-}" \
+    TMUX_PANE="${TMUX_PANE:-}" \
     NTFY_TOPIC="${NTFY_TOPIC:-}" \
     NTFY_SERVER="${NTFY_SERVER:-}" \
     NTFY_TOKEN="${NTFY_TOKEN:-}" \
     AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
     AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
     AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
+    AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME:-}" \
+    AGENT_NOTIFY_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFY_TEST_TMUX_WINDOW_ID:-}" \
+    AGENT_NOTIFY_TEST_TMUX_PANE_ID="${AGENT_NOTIFY_TEST_TMUX_PANE_ID:-}" \
     "$SCRIPT" "$@"
 }
 
@@ -223,29 +242,41 @@ test_tmux_attempted_when_available() {
   new_case || return 1
   AGENT_NOTIFY_TEST_UNAME=Linux
   TMUX=/tmp/tmux-session
+  TMUX_PANE='%34'
   AGENT_NOTIFY_TEST_TMUX_SESSION_NAME=agent-work
   AGENT_NOTIFY_TEST_TMUX_SESSION_ID='$9'
+  AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME=/dev/ttys015
+  AGENT_NOTIFY_TEST_TMUX_WINDOW_ID='@12'
+  AGENT_NOTIFY_TEST_TMUX_PANE_ID='%34'
   mock_uname
   mock_tmux_session
 
   run_payload '{"message":"waiting"}' --agent claude --event interaction || return 1
   assert_log_contains 'tmux'
-  assert_log_contains 'display-message	-p	#S' || return 1
-  assert_log_contains 'display-message	-p	#{session_id}' || return 1
+  assert_log_contains 'display-message	-p	-t	%34	#S' || return 1
+  assert_log_contains 'display-message	-p	-t	%34	#{session_id}' || return 1
+  assert_log_contains 'display-message	-p	#{client_name}' || return 1
+  assert_log_contains 'display-message	-p	-t	%34	#{window_id}' || return 1
+  assert_log_contains 'display-message	-p	-t	%34	#{pane_id}' || return 1
   assert_log_contains 'display-menu' || return 1
   assert_log_contains '-x	C' || return 1
   assert_log_contains '-y	C' || return 1
   assert_log_contains 'bg=yellow,fg=black,bold' || return 1
   assert_log_contains 'Claude Code needs input: [agent-work] waiting' || return 1
-  assert_log_contains "switch-client -t '\$9'"
+  assert_log_contains '	f	' || return 1
+  assert_log_contains "switch-client -c '/dev/ttys015' -t '%34'"
 }
 
 test_tmux_session_added_to_local_notification() {
   new_case || return 1
   AGENT_NOTIFY_TEST_UNAME=Linux
   TMUX=/tmp/tmux-session
+  TMUX_PANE='%34'
   AGENT_NOTIFY_TEST_TMUX_SESSION_NAME=agent-work
   AGENT_NOTIFY_TEST_TMUX_SESSION_ID='$9'
+  AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME=/dev/ttys015
+  AGENT_NOTIFY_TEST_TMUX_WINDOW_ID='@12'
+  AGENT_NOTIFY_TEST_TMUX_PANE_ID='%34'
   mock_uname
   mock_tmux_session
   mock_record notify-send
