@@ -428,6 +428,43 @@ test_symlinked_script_uses_source_modules() {
   assert_log_contains 'Codex CLI finished'
 }
 
+test_symlinked_script_ignores_stale_installed_modules() {
+  new_case || return 1
+  AGENT_NOTIFIER_TEST_UNAME=Linux
+  mock_uname
+  mock_record notify-send
+  mkdir -p "$TMP_ROOT/prefix/bin" "$TMP_ROOT/prefix/lib/agent-notifier" || return 1
+  ln -s "$SCRIPT" "$TMP_ROOT/prefix/bin/agent-notifier"
+  : >"$TMP_ROOT/prefix/lib/agent-notifier/core.sh"
+
+  printf '{}' | run_agent_notifier_as "$TMP_ROOT/prefix/bin/agent-notifier" --agent codex --event finished || return 1
+  assert_log_contains 'notify-send' || return 1
+  assert_log_contains 'Codex CLI finished'
+}
+
+test_uninstall_removes_installed_bootstrap_module() {
+  new_case || return 1
+  install_prefix="$TMP_ROOT/prefix"
+  install_bin_dir="$install_prefix/bin"
+  install_lib_dir="$install_prefix/lib/agent-notifier"
+  mkdir -p "$install_bin_dir" "$install_lib_dir" || return 1
+  : >"$install_bin_dir/agent-notifier"
+
+  for module in bootstrap cli core notify notify_local notify_tmux notify_ntfy tmux; do
+    : >"$install_lib_dir/$module.sh"
+  done
+
+  PATH="$ORIGINAL_PATH" "$ROOT/uninstall.sh" --prefix "$install_prefix" >"$TMP_ROOT/uninstall.out" || return 1
+  [ ! -e "$install_lib_dir/bootstrap.sh" ] || {
+    printf 'bootstrap module was not removed\n' >&2
+    return 1
+  }
+  [ ! -d "$install_lib_dir" ] || {
+    printf 'module directory was not removed\n' >&2
+    return 1
+  }
+}
+
 run_test 'macOS chooses osascript' test_macos_uses_osascript
 run_test 'Linux chooses notify-send' test_linux_uses_notify_send
 run_test 'missing OS backend exits successfully' test_missing_os_backend_exits_successfully
@@ -445,6 +482,8 @@ run_test 'Codex legacy positional payload works' test_codex_legacy_positional_pa
 run_test 'Markdown payloads become plain text' test_markdown_payload_becomes_plain_text
 run_test 'invalid flags fail' test_invalid_flags_fail
 run_test 'symlinked script uses source modules' test_symlinked_script_uses_source_modules
+run_test 'symlinked script ignores stale installed modules' test_symlinked_script_ignores_stale_installed_modules
+run_test 'uninstall removes installed bootstrap module' test_uninstall_removes_installed_bootstrap_module
 
 printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [ "$FAIL_COUNT" -eq 0 ]

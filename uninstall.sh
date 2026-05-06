@@ -54,7 +54,7 @@ else
 fi
 
 removed_modules=0
-for module in cli core notify notify_local notify_tmux notify_ntfy tmux; do
+for module in bootstrap cli core notify notify_local notify_tmux notify_ntfy tmux; do
   module_path="$lib_dir/$module.sh"
   if [ -e "$module_path" ] || [ -L "$module_path" ]; then
     rm "$module_path"

@@ -12,47 +12,57 @@ agent_notifier_abs_dir() {
   CDPATH= cd -- "$agent_notifier_path_dir" && pwd
 }
 
+agent_notifier_symlink_lib_dir() {
+  [ -L "$1" ] || return 1
+  command -v readlink >/dev/null 2>&1 || return 1
+
+  agent_notifier_link_target=$(readlink "$1" 2>/dev/null || true)
+  [ -n "$agent_notifier_link_target" ] || return 1
+
+  case "$agent_notifier_link_target" in
+    /*) agent_notifier_target_path=$agent_notifier_link_target ;;
+    *) agent_notifier_target_path=$2/$agent_notifier_link_target ;;
+  esac
+
+  agent_notifier_target_dir=$(agent_notifier_abs_dir "$agent_notifier_target_path" 2>/dev/null || true)
+  [ -n "$agent_notifier_target_dir" ] || return 1
+
+  printf '%s\n' "$agent_notifier_target_dir/../lib/agent-notifier"
+}
+
+agent_notifier_lib_dir_has_bootstrap() {
+  [ -f "$1/bootstrap.sh" ]
+}
+
+agent_notifier_resolve_lib_dir() {
+  agent_notifier_default_lib_dir=$2/../lib/agent-notifier
+  agent_notifier_linked_lib_dir=$(agent_notifier_symlink_lib_dir "$1" "$2" || true)
+
+  if [ -n "${AGENT_NOTIFIER_LIB_DIR:-}" ]; then
+    printf '%s\n' "$AGENT_NOTIFIER_LIB_DIR"
+  elif agent_notifier_lib_dir_has_bootstrap "$agent_notifier_default_lib_dir"; then
+    printf '%s\n' "$agent_notifier_default_lib_dir"
+  elif [ -n "$agent_notifier_linked_lib_dir" ] && agent_notifier_lib_dir_has_bootstrap "$agent_notifier_linked_lib_dir"; then
+    printf '%s\n' "$agent_notifier_linked_lib_dir"
+  else
+    printf '%s\n' "$agent_notifier_default_lib_dir"
+  fi
+}
+
 agent_notifier_script_path=${BASH_SOURCE[0]}
 agent_notifier_script_dir=$(agent_notifier_abs_dir "$agent_notifier_script_path") || {
   printf 'agent-notifier: could not resolve script directory\n' >&2
   exit 70
 }
+agent_notifier_lib_dir=$(agent_notifier_resolve_lib_dir "$agent_notifier_script_path" "$agent_notifier_script_dir")
 
-agent_notifier_default_lib_dir=$agent_notifier_script_dir/../lib/agent-notifier
-agent_notifier_symlink_lib_dir=
-
-if [ -L "$agent_notifier_script_path" ] && command -v readlink >/dev/null 2>&1; then
-  agent_notifier_link_target=$(readlink "$agent_notifier_script_path" 2>/dev/null || true)
-  if [ -n "$agent_notifier_link_target" ]; then
-    case "$agent_notifier_link_target" in
-      /*) agent_notifier_target_path=$agent_notifier_link_target ;;
-      *) agent_notifier_target_path=$agent_notifier_script_dir/$agent_notifier_link_target ;;
-    esac
-    agent_notifier_target_dir=$(agent_notifier_abs_dir "$agent_notifier_target_path" 2>/dev/null || true)
-    if [ -n "$agent_notifier_target_dir" ]; then
-      agent_notifier_symlink_lib_dir=$agent_notifier_target_dir/../lib/agent-notifier
-    fi
-  fi
+agent_notifier_bootstrap_path=$agent_notifier_lib_dir/bootstrap.sh
+if [ ! -f "$agent_notifier_bootstrap_path" ]; then
+  printf 'agent-notifier: missing module: %s\n' "$agent_notifier_bootstrap_path" >&2
+  exit 70
 fi
-
-if [ -n "${AGENT_NOTIFIER_LIB_DIR:-}" ]; then
-  agent_notifier_lib_dir=$AGENT_NOTIFIER_LIB_DIR
-elif [ -d "$agent_notifier_default_lib_dir" ]; then
-  agent_notifier_lib_dir=$agent_notifier_default_lib_dir
-elif [ -n "$agent_notifier_symlink_lib_dir" ] && [ -d "$agent_notifier_symlink_lib_dir" ]; then
-  agent_notifier_lib_dir=$agent_notifier_symlink_lib_dir
-else
-  agent_notifier_lib_dir=$agent_notifier_default_lib_dir
-fi
-
-for agent_notifier_module in core tmux notify_local notify_tmux notify_ntfy notify cli; do
-  agent_notifier_module_path=$agent_notifier_lib_dir/$agent_notifier_module.sh
-  if [ ! -f "$agent_notifier_module_path" ]; then
-    printf 'agent-notifier: missing module: %s\n' "$agent_notifier_module_path" >&2
-    exit 70
-  fi
-  . "$agent_notifier_module_path"
-done
+. "$agent_notifier_bootstrap_path"
+agent_notifier_source_modules "$agent_notifier_lib_dir"
 
 main "$@"
 exit 0
