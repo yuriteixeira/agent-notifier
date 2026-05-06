@@ -8,7 +8,7 @@ running inside tmux, and optional remote ntfy publishing.
 
 ## Features
 
-- Single Bash script: `bin/agent-notify`
+- Small Bash CLI: `bin/agent-notify` with support modules in `lib/agent-notify/`
 - macOS local notifications through `osascript`
 - Linux local notifications through `notify-send`
 - tmux session names in notification text when running inside tmux
@@ -29,11 +29,15 @@ Clone the repo, then run:
 ./install.sh
 ```
 
-By default this copies `bin/agent-notify` to:
+By default this copies `bin/agent-notify` and its support modules to:
 
 ```text
 ~/.local/bin/agent-notify
+~/.local/lib/agent-notify/
 ```
+
+When `--bin-dir` is used, support modules are installed in a sibling
+`lib/agent-notify/` directory next to the chosen bin directory.
 
 To install as a symlink instead:
 

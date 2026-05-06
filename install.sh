@@ -6,8 +6,8 @@ usage() {
   cat <<'EOF'
 Usage: ./install.sh [--copy|--symlink] [--prefix DIR] [--bin-dir DIR]
 
-Installs bin/agent-notify to ~/.local/bin/agent-notify by default and prints
-configuration snippets for Claude Code, Codex CLI, and Gemini CLI.
+Installs bin/agent-notify and support modules under ~/.local by default, then
+prints configuration snippets for Claude Code, Codex CLI, and Gemini CLI.
 EOF
 }
 
@@ -51,8 +51,11 @@ if [ -z "$bin_dir" ]; then
   bin_dir="$prefix/bin"
 fi
 
+lib_dir="$(dirname -- "$bin_dir")/lib/agent-notify"
+
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 src="$script_dir/bin/agent-notify"
+src_lib_dir="$script_dir/lib/agent-notify"
 dest="$bin_dir/agent-notify"
 
 if [ ! -f "$src" ]; then
@@ -60,14 +63,34 @@ if [ ! -f "$src" ]; then
   exit 1
 fi
 
-mkdir -p "$bin_dir"
+if [ ! -d "$src_lib_dir" ]; then
+  echo "install.sh: missing $src_lib_dir" >&2
+  exit 1
+fi
+
+mkdir -p "$bin_dir" "$lib_dir"
+
+if [ -e "$dest" ] || [ -L "$dest" ]; then
+  rm "$dest"
+fi
+
+for module in "$src_lib_dir"/*.sh; do
+  module_dest="$lib_dir/$(basename -- "$module")"
+  if [ -e "$module_dest" ] || [ -L "$module_dest" ]; then
+    rm "$module_dest"
+  fi
+done
 
 case "$mode" in
   copy)
     cp "$src" "$dest"
+    cp "$src_lib_dir"/*.sh "$lib_dir"/
     ;;
   symlink)
     ln -sfn "$src" "$dest"
+    for module in "$src_lib_dir"/*.sh; do
+      ln -sfn "$module" "$lib_dir/$(basename -- "$module")"
+    done
     ;;
 esac
 
@@ -87,6 +110,7 @@ toml_command() {
 }
 
 echo "Installed $dest"
+echo "Installed support modules in $lib_dir"
 case ":$PATH:" in
   *":$bin_dir:"*) ;;
   *)

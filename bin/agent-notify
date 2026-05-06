@@ -1,408 +1,58 @@
 #!/usr/bin/env bash
 
-usage() {
-  cat >&2 <<'EOF'
-Usage: agent-notify --agent claude|codex|gemini --event finished|interaction [payload-json]
-
-Reads hook JSON from stdin by default. For Codex legacy notification commands,
-the first positional JSON payload is also accepted.
-EOF
-}
-
-fail_usage() {
-  printf 'agent-notify: %s\n' "$1" >&2
-  usage
-  exit 64
-}
-
-have() {
-  command -v "$1" >/dev/null 2>&1
-}
-
-squash_ws() {
-  tr '\r\n\t' '   ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
-}
-
-limit_text() {
-  awk -v max="$1" '{
-    if (length($0) > max) {
-      print substr($0, 1, max - 3) "..."
-    } else {
-      print
-    }
-  }'
-}
-
-lower() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
-}
-
-tmux_display_format() {
-  format=$1
-  [ -n "${TMUX:-}" ] && have tmux || return 0
-  if [ -n "${TMUX_PANE:-}" ]; then
-    tmux display-message -p -t "$TMUX_PANE" "$format" 2>/dev/null | head -n 1
-  else
-    tmux display-message -p "$format" 2>/dev/null | head -n 1
-  fi
-}
-
-tmux_current_session_name() {
-  tmux_display_format '#S' | squash_ws
-}
-
-tmux_current_session_id() {
-  tmux_display_format '#{session_id}'
-}
-
-tmux_current_client_name() {
-  [ -n "${TMUX:-}" ] && have tmux || return 0
-  tmux display-message -p '#{client_name}' 2>/dev/null | head -n 1
-}
-
-tmux_current_window_id() {
-  tmux_display_format '#{window_id}'
-}
-
-tmux_current_pane_id() {
-  tmux_display_format '#{pane_id}'
-}
-
-tmux_escape_format() {
-  sed 's/#/##/g'
-}
-
-tmux_focus_command() {
-  if [ -n "${tmux_client_name:-}" ] && [ -n "${tmux_pane_id:-}" ]; then
-    printf "switch-client -c '%s' -t '%s'" "$tmux_client_name" "$tmux_pane_id"
-  elif [ -n "${tmux_pane_id:-}" ]; then
-    printf "switch-client -t '%s'" "$tmux_pane_id"
-  elif [ -n "${tmux_client_name:-}" ] && [ -n "${tmux_session_id:-}" ]; then
-    printf "switch-client -c '%s' -t '%s'" "$tmux_client_name" "$tmux_session_id"
-  elif [ -n "${tmux_session_id:-}" ]; then
-    printf "switch-client -t '%s'" "$tmux_session_id"
-  fi
-}
-
-markdown_to_plain() {
-  sed -E '
-    s/!\[([^][]*)\]\([^)]*\)/\1/g
-    s/\[([^][]*)\]\([^)]*\)/\1/g
-    s/```[[:alnum:]_+-]*[[:space:]]*/ /g
-    s/```/ /g
-    s/`([^`]*)`/\1/g
-    s/~~([^~]*)~~/\1/g
-    s/(^|[[:space:]])#{1,6}[[:space:]]+/\1/g
-    s/(^|[[:space:]])>[[:space:]]+/\1/g
-    s/(^|[[:space:]])[-+*][[:space:]]+/\1/g
-    s/(^|[[:space:]])[0-9]+[.)][[:space:]]+/\1/g
-    s/\*\*([^*]*)\*\*/\1/g
-    s/\*([^*]*)\*/\1/g
-  '
-}
-
-json_unescape() {
-  sed 's/\\"/"/g; s/\\\\/\\/g; s/\\n/ /g; s/\\r/ /g; s/\\t/ /g'
-}
-
-json_string_value() {
-  key=$1
-  [ -n "${payload:-}" ] || return 0
-  printf '%s' "$payload" |
-    tr '\n' ' ' |
-    sed -nE 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p' |
-    head -n 1 |
-    json_unescape
-}
-
-first_json_value() {
-  for key in "$@"; do
-    value=$(json_string_value "$key")
-    if [ -n "$value" ]; then
-      printf '%s' "$value"
-      return 0
-    fi
-  done
-}
-
-agent_label() {
+agent_notify_dirname() {
   case "$1" in
-    claude) printf 'Claude Code' ;;
-    codex) printf 'Codex CLI' ;;
-    gemini) printf 'Gemini CLI' ;;
+    */*) printf '%s\n' "${1%/*}" ;;
+    *) printf '.\n' ;;
   esac
 }
 
-event_from_payload() {
-  hint=$(first_json_value hook_event_name hook-event-name notification_type notification-type event type reason)
-  hint=$(lower "$hint")
-  case "$hint" in
-    *afteragent*|*complete*|*completed*|*finish*|*finished*|*stop*|*turn-complete*)
-      printf 'finished'
-      ;;
-    *)
-      printf 'interaction'
-      ;;
-  esac
+agent_notify_abs_dir() {
+  agent_notify_path_dir=$(agent_notify_dirname "$1")
+  CDPATH= cd -- "$agent_notify_path_dir" && pwd
 }
 
-normalize_agent() {
-  case "$(lower "$1")" in
-    claude|claude-code|claudecode) printf 'claude' ;;
-    codex|codex-cli|codexcli) printf 'codex' ;;
-    gemini|gemini-cli|geminicli) printf 'gemini' ;;
-    *) return 1 ;;
-  esac
+agent_notify_script_path=${BASH_SOURCE[0]}
+agent_notify_script_dir=$(agent_notify_abs_dir "$agent_notify_script_path") || {
+  printf 'agent-notify: could not resolve script directory\n' >&2
+  exit 70
 }
 
-title_for() {
-  payload_title=$(first_json_value title)
-  if [ -n "$payload_title" ]; then
-    printf '%s' "$payload_title" | markdown_to_plain | squash_ws | limit_text 96
-    return 0
-  fi
+agent_notify_default_lib_dir=$agent_notify_script_dir/../lib/agent-notify
+agent_notify_symlink_lib_dir=
 
-  label=$(agent_label "$agent")
-  case "$event" in
-    finished) printf '%s finished' "$label" ;;
-    interaction) printf '%s needs input' "$label" ;;
-  esac
-}
-
-body_for() {
-  message=$(first_json_value message last_assistant_message last-assistant-message description reason prompt summary)
-  cwd=$(first_json_value cwd current_working_directory current-working-directory workspace_dir workspace-dir)
-
-  if [ -n "$message" ] && [ -n "$cwd" ]; then
-    body_text=$(printf '%s (%s)' "$message" "$cwd")
-  elif [ -n "$message" ]; then
-    body_text=$(printf '%s' "$message")
-  elif [ -n "$cwd" ]; then
-    body_text=$(printf 'Working directory: %s' "$cwd")
-  else
-    label=$(agent_label "$agent")
-    case "$event" in
-      finished) body_text=$(printf '%s finished a turn.' "$label") ;;
-      interaction) body_text=$(printf '%s is waiting for user interaction.' "$label") ;;
+if [ -L "$agent_notify_script_path" ] && command -v readlink >/dev/null 2>&1; then
+  agent_notify_link_target=$(readlink "$agent_notify_script_path" 2>/dev/null || true)
+  if [ -n "$agent_notify_link_target" ]; then
+    case "$agent_notify_link_target" in
+      /*) agent_notify_target_path=$agent_notify_link_target ;;
+      *) agent_notify_target_path=$agent_notify_script_dir/$agent_notify_link_target ;;
     esac
-  fi
-
-  body_text=$(printf '%s' "$body_text" | markdown_to_plain | squash_ws)
-  if [ -n "${tmux_session:-}" ]; then
-    body_text=$(printf '[%s] %s' "$tmux_session" "$body_text")
-  fi
-  printf '%s' "$body_text" | limit_text 420
-}
-
-osascript_quote() {
-  sed 's/\\/\\\\/g; s/"/\\"/g'
-}
-
-notify_local() {
-  os=$(uname -s 2>/dev/null || printf 'unknown')
-  case "$os" in
-    Darwin)
-      if have osascript; then
-        escaped_title=$(printf '%s' "$title" | osascript_quote)
-        escaped_body=$(printf '%s' "$body" | osascript_quote)
-        osascript -e "display notification \"$escaped_body\" with title \"$escaped_title\"" >/dev/null 2>&1 || true
-      fi
-      ;;
-    Linux)
-      if have notify-send; then
-        notify-send "$title" "$body" >/dev/null 2>&1 || true
-      fi
-      ;;
-  esac
-}
-
-notify_tmux() {
-  [ -n "${TMUX:-}" ] && have tmux || return 0
-
-  tmux_message=$(printf '%s: %s' "$title" "$body")
-  tmux_menu_title=$(printf '%s' "$title" | tmux_escape_format)
-  tmux_menu_item=$(printf '%s' "$tmux_message" | limit_text 160 | tmux_escape_format)
-  tmux_menu_command=$(tmux_focus_command)
-
-  (
-    if [ -n "$tmux_menu_command" ]; then
-      tmux display-menu \
-        -x C \
-        -y C \
-        -s 'bg=yellow,fg=black,bold' \
-        -S 'bg=yellow,fg=black,bold' \
-        -H 'bg=black,fg=yellow,bold' \
-        -T "$tmux_menu_title" \
-        "$tmux_menu_item" f "$tmux_menu_command" ||
-        tmux display-message -d 8000 "#[bg=yellow,fg=black,bold] $tmux_menu_item #[default]" ||
-        true
-    else
-      tmux display-message -d 8000 "#[bg=yellow,fg=black,bold] $tmux_menu_item #[default]" || true
+    agent_notify_target_dir=$(agent_notify_abs_dir "$agent_notify_target_path" 2>/dev/null || true)
+    if [ -n "$agent_notify_target_dir" ]; then
+      agent_notify_symlink_lib_dir=$agent_notify_target_dir/../lib/agent-notify
     fi
-  ) >/dev/null 2>&1 </dev/null &
-
-  { printf '\a' >/dev/tty; } 2>/dev/null || true
-}
-
-strip_config_value() {
-  value=$1
-  value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-  case "$value" in
-    \"*\") value=${value#\"}; value=${value%\"} ;;
-    \'*\') value=${value#\'}; value=${value%\'} ;;
-  esac
-  printf '%s' "$value"
-}
-
-load_ntfy_dotfile() {
-  config_file=${AGENT_NOTIFY_NTFY_ENV:-"$HOME/.config/agent-notify/ntfy.env"}
-  [ -f "$config_file" ] || return 0
-
-  while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      ''|'#'*) continue ;;
-    esac
-
-    key=${line%%=*}
-    value=${line#*=}
-    key=$(printf '%s' "$key" | sed 's/^[[:space:]]*export[[:space:]]*//; s/^[[:space:]]*//; s/[[:space:]]*$//')
-    value=$(strip_config_value "$value")
-
-    case "$key" in
-      NTFY_TOPIC) [ -z "${NTFY_TOPIC:-}" ] && NTFY_TOPIC=$value ;;
-      NTFY_SERVER) [ -z "${NTFY_SERVER:-}" ] && NTFY_SERVER=$value ;;
-      NTFY_TOKEN) [ -z "${NTFY_TOKEN:-}" ] && NTFY_TOKEN=$value ;;
-    esac
-  done <"$config_file"
-}
-
-notify_ntfy() {
-  load_ntfy_dotfile
-  [ -n "${NTFY_TOPIC:-}" ] || return 0
-  have curl || return 0
-
-  server=${NTFY_SERVER:-https://ntfy.sh}
-  server=${server%/}
-  topic=${NTFY_TOPIC#/}
-  priority=default
-  tags=heavy_check_mark
-  if [ "$event" = "interaction" ]; then
-    priority=high
-    tags=warning
   fi
+fi
 
-  curl_args=(
-    -fsS
-    --connect-timeout 2
-    --max-time 3
-    -X POST
-    "$server/$topic"
-    -H "Title: $title"
-    -H "Priority: $priority"
-    -H "Tags: $tags"
-  )
-  if [ -n "${NTFY_TOKEN:-}" ]; then
-    curl_args+=(-H "Authorization: Bearer $NTFY_TOKEN")
+if [ -n "${AGENT_NOTIFY_LIB_DIR:-}" ]; then
+  agent_notify_lib_dir=$AGENT_NOTIFY_LIB_DIR
+elif [ -d "$agent_notify_default_lib_dir" ]; then
+  agent_notify_lib_dir=$agent_notify_default_lib_dir
+elif [ -n "$agent_notify_symlink_lib_dir" ] && [ -d "$agent_notify_symlink_lib_dir" ]; then
+  agent_notify_lib_dir=$agent_notify_symlink_lib_dir
+else
+  agent_notify_lib_dir=$agent_notify_default_lib_dir
+fi
+
+for agent_notify_module in core tmux notify_local notify_tmux notify_ntfy notify cli; do
+  agent_notify_module_path=$agent_notify_lib_dir/$agent_notify_module.sh
+  if [ ! -f "$agent_notify_module_path" ]; then
+    printf 'agent-notify: missing module: %s\n' "$agent_notify_module_path" >&2
+    exit 70
   fi
-  curl_args+=(--data-binary "$body")
-
-  curl "${curl_args[@]}" >/dev/null 2>&1 || true
-}
-
-agent=
-event=
-payload_arg=
-
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --agent)
-      [ "$#" -ge 2 ] || fail_usage '--agent requires a value'
-      agent=$2
-      shift 2
-      ;;
-    --agent=*)
-      agent=${1#--agent=}
-      shift
-      ;;
-    --event)
-      [ "$#" -ge 2 ] || fail_usage '--event requires a value'
-      event=$2
-      shift 2
-      ;;
-    --event=*)
-      event=${1#--event=}
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -*)
-      fail_usage "unknown flag: $1"
-      ;;
-    *)
-      if [ -z "$payload_arg" ]; then
-        payload_arg=$1
-      else
-        fail_usage "unexpected positional argument: $1"
-      fi
-      shift
-      ;;
-  esac
+  . "$agent_notify_module_path"
 done
 
-if [ "$#" -gt 0 ]; then
-  if [ -z "$payload_arg" ] && [ "$#" -eq 1 ]; then
-    payload_arg=$1
-  else
-    fail_usage 'unexpected positional arguments'
-  fi
-fi
-
-if [ -n "$payload_arg" ]; then
-  payload=$payload_arg
-elif [ ! -t 0 ]; then
-  payload=$(cat)
-else
-  payload=
-fi
-
-if [ -n "$agent" ]; then
-  agent=$(normalize_agent "$agent") || fail_usage 'invalid --agent; expected claude, codex, or gemini'
-else
-  payload_agent=$(first_json_value agent cli source)
-  agent=$(normalize_agent "$payload_agent" 2>/dev/null || true)
-  if [ -z "$agent" ] && [ -n "$payload" ]; then
-    agent=codex
-  fi
-  [ -n "$agent" ] || fail_usage '--agent is required when no payload can identify the agent'
-fi
-
-if [ -n "$event" ]; then
-  event=$(lower "$event")
-else
-  event=$(event_from_payload)
-fi
-
-case "$event" in
-  finished|interaction) ;;
-  *) fail_usage 'invalid --event; expected finished or interaction' ;;
-esac
-
-tmux_session=$(tmux_current_session_name)
-tmux_session_id=$(tmux_current_session_id)
-tmux_client_name=$(tmux_current_client_name)
-tmux_window_id=$(tmux_current_window_id)
-tmux_pane_id=$(tmux_current_pane_id)
-title=$(title_for)
-body=$(body_for)
-
-notify_local
-notify_tmux
-notify_ntfy
-
+main "$@"
 exit 0

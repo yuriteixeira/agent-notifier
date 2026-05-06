@@ -6,8 +6,8 @@ usage() {
   cat <<'EOF'
 Usage: ./uninstall.sh [--prefix DIR] [--bin-dir DIR]
 
-Removes the installed agent-notify script. Configuration snippets in Claude,
-Codex, Gemini, or ntfy files must be removed manually.
+Removes the installed agent-notify script and support modules. Configuration
+snippets in Claude, Codex, Gemini, or ntfy files must be removed manually.
 EOF
 }
 
@@ -42,6 +42,8 @@ if [ -z "$bin_dir" ]; then
   bin_dir="$prefix/bin"
 fi
 
+lib_dir="$(dirname -- "$bin_dir")/lib/agent-notify"
+
 dest="$bin_dir/agent-notify"
 
 if [ -e "$dest" ] || [ -L "$dest" ]; then
@@ -49,6 +51,23 @@ if [ -e "$dest" ] || [ -L "$dest" ]; then
   echo "Removed $dest"
 else
   echo "No installed script found at $dest"
+fi
+
+removed_modules=0
+for module in cli core notify notify_local notify_tmux notify_ntfy tmux; do
+  module_path="$lib_dir/$module.sh"
+  if [ -e "$module_path" ] || [ -L "$module_path" ]; then
+    rm "$module_path"
+    removed_modules=1
+  fi
+done
+
+if rmdir "$lib_dir" 2>/dev/null; then
+  echo "Removed support module directory $lib_dir"
+elif [ "$removed_modules" -eq 1 ]; then
+  echo "Removed support modules from $lib_dir"
+else
+  echo "No support modules found at $lib_dir"
 fi
 
 cat <<'EOF'

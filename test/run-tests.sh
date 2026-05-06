@@ -57,7 +57,7 @@ new_case() {
   mkdir -p "$MOCKBIN" "$TOOLBIN" "$HOME_DIR"
   : >"$LOG"
 
-  for tool in bash sed tr awk head cat basename; do
+  for tool in bash sed tr awk head cat basename dirname readlink; do
     path=$(tool_path "$tool") || {
       printf 'missing required test tool: %s\n' "$tool" >&2
       return 1
@@ -118,11 +118,10 @@ if [ "${1:-}" = "display-message" ] && [ "${2:-}" = "-p" ]; then
 fi'
 }
 
-run_payload() {
-  local input=$1
+run_agent_notify_as() {
+  local command_path=$1
   shift
-  printf '%s' "$input" |
-    PATH="$CASE_PATH" \
+  PATH="$CASE_PATH" \
     HOME="$HOME_DIR" \
     AGENT_NOTIFY_TEST_LOG="$LOG" \
     AGENT_NOTIFY_TEST_UNAME="${AGENT_NOTIFY_TEST_UNAME:-Linux}" \
@@ -137,47 +136,27 @@ run_payload() {
     AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME:-}" \
     AGENT_NOTIFY_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFY_TEST_TMUX_WINDOW_ID:-}" \
     AGENT_NOTIFY_TEST_TMUX_PANE_ID="${AGENT_NOTIFY_TEST_TMUX_PANE_ID:-}" \
-    "$SCRIPT" "$@"
+    "$command_path" "$@"
+}
+
+run_agent_notify() {
+  run_agent_notify_as "$SCRIPT" "$@"
+}
+
+run_payload() {
+  local input=$1
+  shift
+  printf '%s' "$input" | run_agent_notify "$@"
 }
 
 run_fixture() {
   local fixture=$1
   shift
-  PATH="$CASE_PATH" \
-    HOME="$HOME_DIR" \
-    AGENT_NOTIFY_TEST_LOG="$LOG" \
-    AGENT_NOTIFY_TEST_UNAME="${AGENT_NOTIFY_TEST_UNAME:-Linux}" \
-    TMUX="${TMUX:-}" \
-    TMUX_PANE="${TMUX_PANE:-}" \
-    NTFY_TOPIC="${NTFY_TOPIC:-}" \
-    NTFY_SERVER="${NTFY_SERVER:-}" \
-    NTFY_TOKEN="${NTFY_TOKEN:-}" \
-    AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
-    AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
-    AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
-    AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME:-}" \
-    AGENT_NOTIFY_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFY_TEST_TMUX_WINDOW_ID:-}" \
-    AGENT_NOTIFY_TEST_TMUX_PANE_ID="${AGENT_NOTIFY_TEST_TMUX_PANE_ID:-}" \
-    "$SCRIPT" "$@" <"$ROOT/test/fixtures/$fixture"
+  run_agent_notify "$@" <"$ROOT/test/fixtures/$fixture"
 }
 
 run_no_stdin() {
-  PATH="$CASE_PATH" \
-    HOME="$HOME_DIR" \
-    AGENT_NOTIFY_TEST_LOG="$LOG" \
-    AGENT_NOTIFY_TEST_UNAME="${AGENT_NOTIFY_TEST_UNAME:-Linux}" \
-    TMUX="${TMUX:-}" \
-    TMUX_PANE="${TMUX_PANE:-}" \
-    NTFY_TOPIC="${NTFY_TOPIC:-}" \
-    NTFY_SERVER="${NTFY_SERVER:-}" \
-    NTFY_TOKEN="${NTFY_TOKEN:-}" \
-    AGENT_NOTIFY_NTFY_ENV="${AGENT_NOTIFY_NTFY_ENV:-}" \
-    AGENT_NOTIFY_TEST_TMUX_SESSION_NAME="${AGENT_NOTIFY_TEST_TMUX_SESSION_NAME:-}" \
-    AGENT_NOTIFY_TEST_TMUX_SESSION_ID="${AGENT_NOTIFY_TEST_TMUX_SESSION_ID:-}" \
-    AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME="${AGENT_NOTIFY_TEST_TMUX_CLIENT_NAME:-}" \
-    AGENT_NOTIFY_TEST_TMUX_WINDOW_ID="${AGENT_NOTIFY_TEST_TMUX_WINDOW_ID:-}" \
-    AGENT_NOTIFY_TEST_TMUX_PANE_ID="${AGENT_NOTIFY_TEST_TMUX_PANE_ID:-}" \
-    "$SCRIPT" "$@"
+  run_agent_notify "$@"
 }
 
 assert_log_contains() {
@@ -437,6 +416,18 @@ test_invalid_flags_fail() {
   fi
 }
 
+test_symlinked_script_uses_source_modules() {
+  new_case || return 1
+  AGENT_NOTIFY_TEST_UNAME=Linux
+  mock_uname
+  mock_record notify-send
+  ln -s "$SCRIPT" "$TMP_ROOT/agent-notify"
+
+  printf '{}' | run_agent_notify_as "$TMP_ROOT/agent-notify" --agent codex --event finished || return 1
+  assert_log_contains 'notify-send' || return 1
+  assert_log_contains 'Codex CLI finished'
+}
+
 run_test 'macOS chooses osascript' test_macos_uses_osascript
 run_test 'Linux chooses notify-send' test_linux_uses_notify_send
 run_test 'missing OS backend exits successfully' test_missing_os_backend_exits_successfully
@@ -453,6 +444,7 @@ run_test 'Gemini fixture produces expected notification' test_gemini_fixture_tit
 run_test 'Codex legacy positional payload works' test_codex_legacy_positional_payload
 run_test 'Markdown payloads become plain text' test_markdown_payload_becomes_plain_text
 run_test 'invalid flags fail' test_invalid_flags_fail
+run_test 'symlinked script uses source modules' test_symlinked_script_uses_source_modules
 
 printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [ "$FAIL_COUNT" -eq 0 ]
