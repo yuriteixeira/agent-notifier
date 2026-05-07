@@ -55,3 +55,7 @@ files.
 
 - [Configuration](docs/configuration.md)
 - [Development and troubleshooting](docs/development.md)
+
+## License
+
+GPLv3. See [LICENSE](LICENSE).
