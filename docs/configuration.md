@@ -4,6 +4,14 @@ Run `./install.sh` first. The installer prints snippets with the command path
 for your install location. If you copy examples from this file instead, adjust
 `$HOME/.local/bin/agent-notifier` when needed.
 
+## Contents
+
+- [Claude Code](#claude-code)
+- [Codex CLI](#codex-cli)
+- [Gemini CLI](#gemini-cli)
+- [ntfy](#ntfy)
+- [Manual Usage](#manual-usage)
+
 ## Claude Code
 
 Add this shape to `~/.claude/settings.json`:
@@ -155,6 +163,13 @@ Gemini hook docs:
 ## ntfy
 
 ntfy is optional. If no topic is configured, `agent-notifier` skips ntfy.
+
+⚠️ **Do not use public ntfy.sh topics for sensitive, confidential, or corporate
+projects unless you have confirmed it is allowed.** Anyone who knows a public
+topic can subscribe unless the ntfy server enforces authentication.
+
+For corporate projects, ⚠️ **contact your security department before enabling
+ntfy publishing.** Local desktop and tmux notifications do not require ntfy.
 
 Environment variables:
 

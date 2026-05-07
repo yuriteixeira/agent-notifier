@@ -59,3 +59,14 @@ files.
 ## License
 
 GPLv3. See [LICENSE](LICENSE).
+
+## No Guarantees
+
+This tool is provided as-is and is meant to be a small convenience layer around
+agent hooks. It makes a best-effort attempt to notify you, but it cannot
+guarantee delivery, timing, privacy, compatibility with every terminal or agent
+version, or correct behavior in every local environment.
+
+Use it at your own risk. You are responsible for reviewing the hook snippets you
+install, the payloads your agents emit, the notification backends you enable,
+and any data that leaves your machine through services such as ntfy.
